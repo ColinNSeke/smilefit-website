@@ -1,7 +1,7 @@
 "use client";
 
 import SmoothScroll from "./SmoothScroll";
-import BlobHero from "./BlobHero";
+import CinematicHero from "./CinematicHero";
 import MediaCollage from "./MediaCollage";
 import TrainingGrid from "./TrainingGrid";
 import EditorialStatement from "./EditorialStatement";
@@ -13,7 +13,7 @@ export default function SmileFitLanding() {
     <>
       <SmoothScroll />
       <main className="relative w-full">
-        <BlobHero />
+        <CinematicHero />
         <MediaCollage />
         <TrainingGrid />
         <EditorialStatement />

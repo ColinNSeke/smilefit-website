@@ -63,22 +63,6 @@ export default function MediaCollage() {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Background flip on enter
-      gsap.fromTo(
-        root.current,
-        { backgroundColor: "#f2efe6" },
-        {
-          backgroundColor: "#050505",
-          ease: "none",
-          scrollTrigger: {
-            trigger: root.current,
-            start: "top 80%",
-            end: "top 30%",
-            scrub: true,
-          },
-        }
-      );
-
       // Tile entrance stagger
       gsap.from("[data-tile]", {
         opacity: 0,
@@ -128,7 +112,7 @@ export default function MediaCollage() {
   return (
     <section
       ref={root}
-      className="relative w-full overflow-hidden bg-[#f2efe6] text-[#f2efe6]"
+      className="relative w-full overflow-hidden bg-[#050505] text-[#f2efe6]"
       style={{ minHeight: "150vh" }}
     >
       {/* Section label */}
