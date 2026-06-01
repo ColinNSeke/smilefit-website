@@ -14,9 +14,8 @@ type Tile = {
 
 const TILES: Tile[] = [
   {
-    src: "/media/hero-b.mp4",
-    video: true,
-    alt: "Gym atmosphere",
+    src: "/media/gym-02.jpg",
+    alt: "Hex-light gym interior",
     className:
       "left-[4%] top-[8%] w-[34vw] aspect-[3/4] md:w-[22vw] md:aspect-[4/5]",
     speed: -60,
