@@ -4,28 +4,76 @@ import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
+const HERO_LINES = ["KEIN", "STANDARD.", "KEIN ZUFALL."] as const;
+const SCRAMBLE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ.,!?/-";
+
+/**
+ * Decode entrance: each [data-char] scrambles through random glyphs, then
+ * locks to its real character (data-final). The reveal ripples left→right via
+ * a per-character start delay. Returns a cleanup that clears all timers and
+ * restores final text. Whitespace characters are left untouched.
+ */
+function runScramble(
+  scope: HTMLElement,
+  opts: { stagger: number; cycles: number; tick: number }
+): () => void {
+  const chars = Array.from(scope.querySelectorAll<HTMLElement>("[data-char]"));
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  const intervals: ReturnType<typeof setInterval>[] = [];
+
+  chars.forEach((el, i) => {
+    const finalChar = el.dataset.final ?? el.textContent ?? "";
+    if (finalChar.trim() === "") return; // skip spaces
+    const start = setTimeout(() => {
+      let n = 0;
+      const id = setInterval(() => {
+        if (n >= opts.cycles) {
+          clearInterval(id);
+          el.textContent = finalChar;
+          return;
+        }
+        el.textContent =
+          SCRAMBLE_GLYPHS[Math.floor(Math.random() * SCRAMBLE_GLYPHS.length)];
+        n++;
+      }, opts.tick);
+      intervals.push(id);
+    }, i * opts.stagger);
+    timers.push(start);
+  });
+
+  return () => {
+    timers.forEach(clearTimeout);
+    intervals.forEach(clearInterval);
+    chars.forEach((el) => {
+      if (el.dataset.final !== undefined) el.textContent = el.dataset.final;
+    });
+  };
+}
+
+const ABERRATION_FILTER =
+  "drop-shadow(-3px 0 rgba(255,0,40,0.9)) drop-shadow(3px 0 rgba(0,120,255,0.9))";
+
 /**
  * SmileFit — Multi-scene cinematic hero.
  *
  * Mechanics:
- *  Scene 0 — Impact load: the masked headline settles (1.06 → 1) with a
- *    one-frame screen shake + grain/vignette pulse; the neon eyebrow rule
- *    draws in; nav / logo / subhead / CTA stagger in.
- *  Scene 1 — Type as window: an SVG mask paints near-black over the footage
- *    everywhere EXCEPT the letterforms, so the video is visible only inside
- *    the type. Vector mask → crisp at any size.
- *  Scene 2 — Flood + handoff: a pinned, scrubbed timeline scales the masked
- *    type up and fades the near-black surround so the footage floods the
- *    viewport, fades the eyebrow/subhead/CTA, then settles to near-black so
- *    the (near-black) room section takes over with no empty frame.
+ *  Scene 0 — Impact load: the headline settles (1.06 → 1) with a one-frame
+ *    screen shake + grain/vignette pulse; each character decode-scrambles into
+ *    place left→right; a one-shot RGB chromatic-aberration split fires on the
+ *    impact beat; the neon eyebrow rule draws in; nav/subhead/CTA stagger in.
+ *  Scene 1 — Living type: the <h1> uses background-clip:text over a cream→
+ *    violet gradient with slowly panning violet "embers", plus a flickering
+ *    neon-violet outer glow (CSS). Cream type with purple fire-light inside.
+ *  Scene 2 — Flood + handoff: a pinned, scrubbed timeline scales the headline
+ *    up and fades it while the footage pushes in and floods the viewport,
+ *    clears the UI, then settles to near-black so the (near-black) room
+ *    section takes over with no empty frame.
  *
- * Desktop also gets a cursor spotlight (lights the footage seen through the
- * letters) and a magnetic CTA. Mobile / reduced-motion fall back to a calm
- * impact-fade with a plainly-rendered cream headline.
- *
- * The real <h1> is always in the DOM (visible on mobile, sr-only on desktop
- * where the SVG carries the same words) so the headline is never blocked by
- * JS and stays readable if JS fails.
+ * Desktop also gets a cursor spotlight and a magnetic CTA. The real <h1> with
+ * its actual characters renders server-side (aria-label + SSR text), so the
+ * headline is the LCP, never blocked by JS, and reads if JS fails.
+ * prefers-reduced-motion: no scramble / aberration / flicker / ember — the
+ * final cream-fire state with a calm static glow.
  */
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
@@ -46,8 +94,9 @@ export default function CinematicHero() {
         const hover = window.matchMedia("(hover: hover)").matches;
 
         if (reduce) {
-          // Final states only — no shake, no scrub.
-          gsap.set("[data-window], [data-mask]", { opacity: 1, scale: 1 });
+          // Final states only — no scramble, no aberration, no shake/scrub.
+          // (CSS flicker/ember are disabled via prefers-reduced-motion too.)
+          gsap.set("[data-headline]", { opacity: 1, scale: 1 });
           gsap.set("[data-eyebrow-rule]", { scaleX: 1 });
           gsap.set(
             "[data-nav], [data-eyebrow-text], [data-subhead], [data-cta], [data-scrollcue]",
@@ -62,12 +111,24 @@ export default function CinematicHero() {
           delay: 0.12,
         });
 
-        // Masked headline settles with a fast overshoot.
+        // Headline settles with a fast overshoot.
         intro.from(
-          "[data-window]",
+          "[data-headline]",
           { scale: 1.06, duration: 1.1, ease: "expo.out" },
           0
         );
+        // Per-character decode scramble (ripples left→right, ~1s).
+        const headlineEl = root.current?.querySelector<HTMLElement>(
+          "[data-headline]"
+        );
+        if (headlineEl) {
+          const stop = runScramble(headlineEl, {
+            stagger: 30,
+            cycles: 25,
+            tick: 25,
+          });
+          cleanups.push(stop);
+        }
         // One-frame screen shake.
         intro.to(
           root.current,
@@ -78,6 +139,11 @@ export default function CinematicHero() {
           },
           0.06
         );
+        // Impact chromatic-aberration: one-shot RGB split on the headline that
+        // settles clean (~120ms). Inline filter overrides the CSS glow flicker
+        // during the beat; clearProps hands control back to the CSS animation.
+        intro.set("[data-fire]", { filter: ABERRATION_FILTER }, 0.06);
+        intro.set("[data-fire]", { clearProps: "filter" }, 0.18);
         // Grain + vignette pulse.
         intro.fromTo(
           "[data-grain]",
@@ -133,8 +199,8 @@ export default function CinematicHero() {
         morph
           // Footage pushes in.
           .to("[data-bg]", { scale: 1.16 }, 0)
-          // Type scales up and the near-black surround fades → footage floods.
-          .to("[data-mask]", { scale: 1.55, opacity: 0 }, 0)
+          // Headline scales up and fades → the footage floods the viewport.
+          .to("[data-headline]", { scale: 1.45, opacity: 0, y: -40 }, 0)
           // UI clears out.
           .to("[data-eyebrow]", { opacity: 0, y: -10 }, 0.2)
           .to("[data-subhead]", { opacity: 0, y: -10 }, 0.25)
@@ -214,7 +280,7 @@ export default function CinematicHero() {
       mm.add("(max-width: 767px)", () => {
         if (reduce) return;
         gsap.from(
-          "[data-nav], [data-eyebrow], [data-h1-mobile], [data-subhead], [data-cta]",
+          "[data-nav], [data-eyebrow], [data-headline], [data-subhead], [data-cta]",
           {
             opacity: 0,
             y: 22,
@@ -223,6 +289,18 @@ export default function CinematicHero() {
             stagger: 0.08,
           }
         );
+        // Keep the fire fill; shorten the decode scramble, no aberration.
+        const headlineEl = root.current?.querySelector<HTMLElement>(
+          "[data-headline]"
+        );
+        if (headlineEl) {
+          const stop = runScramble(headlineEl, {
+            stagger: 12,
+            cycles: 12,
+            tick: 22,
+          });
+          cleanups.push(stop);
+        }
       });
     }, root);
 
@@ -283,97 +361,7 @@ export default function CinematicHero() {
         }}
       />
 
-      {/* Neon-violet glow bleeds around the letterform edges — sits ABOVE the
-          near-black mask with mix-blend-mode: screen so the purple halos show
-          through the black surround. Flickers via CSS for "purple fire" energy. */}
-      <div
-        className="hero-type-glow pointer-events-none absolute inset-0 z-[6] hidden mix-blend-screen md:block"
-        aria-hidden
-      >
-        <svg
-          className="h-full w-full"
-          viewBox="0 0 1280 720"
-          preserveAspectRatio="xMidYMid slice"
-          style={{
-            filter:
-              "drop-shadow(0 0 18px rgba(124,108,255,.65)) drop-shadow(0 0 40px rgba(124,108,255,.35))",
-          }}
-        >
-          <g
-            fill="rgba(124,108,255,0.45)"
-            style={{
-              fontFamily:
-                '"Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif',
-              fontWeight: 900,
-            }}
-            fontSize="138"
-            letterSpacing="-3"
-          >
-            <text x="60" y="408">KEIN</text>
-            <text x="60" y="546">STANDARD.</text>
-            <text x="60" y="684">KEIN ZUFALL.</text>
-          </g>
-        </svg>
-      </div>
-
-      {/* ============ L1 — TYPE-AS-WINDOW (desktop) ============ */}
-      {/* SVG paints near-black over the footage except inside the letters. */}
-      <div
-        data-window
-        className="pointer-events-none absolute inset-0 z-[5] hidden md:block"
-        style={{ willChange: "transform" }}
-      >
-        <div
-          data-mask
-          className="absolute inset-0"
-          style={{ willChange: "transform, opacity", transformOrigin: "12% 64%" }}
-        >
-          <svg
-            className="h-full w-full"
-            viewBox="0 0 1280 720"
-            preserveAspectRatio="xMidYMid slice"
-            role="presentation"
-            aria-hidden="true"
-          >
-            <defs>
-              <mask id="heroTypeMask">
-                <rect x="0" y="0" width="1280" height="720" fill="#fff" />
-                <g
-                  fill="#000"
-                  style={{
-                    fontFamily:
-                      '"Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif',
-                    fontWeight: 900,
-                  }}
-                  fontSize="138"
-                  letterSpacing="-3"
-                >
-                  <text x="60" y="408">
-                    KEIN
-                  </text>
-                  <text x="60" y="546">
-                    STANDARD.
-                  </text>
-                  <text x="60" y="684">
-                    KEIN ZUFALL.
-                  </text>
-                </g>
-              </mask>
-            </defs>
-            {/* Near-black surround with the letters knocked out. */}
-            <rect
-              x="0"
-              y="0"
-              width="1280"
-              height="720"
-              fill="#050505"
-              mask="url(#heroTypeMask)"
-            />
-          </svg>
-        </div>
-      </div>
-
-      {/* Vignette (over the surround, deepens on scrub) */}
+      {/* Vignette (over the footage, deepens on scrub) */}
       <div
         data-vignette
         className="pointer-events-none absolute inset-0 z-[7] opacity-50"
@@ -449,33 +437,37 @@ export default function CinematicHero() {
               </span>
             </div>
 
-            {/* Real <h1> — visible on mobile, sr-only on desktop (where the
-                SVG window carries the same words). Always in the DOM so the
-                headline is never blocked by JS and reads if JS fails. */}
-            <h1 className="md:sr-only">
-              <span className="sr-only">Kein Standard. Kein Zufall.</span>
-              <span
-                data-h1-mobile
-                aria-hidden
-                className="font-display block leading-[0.88] tracking-[-0.02em] md:hidden"
-                style={{
-                  fontSize: "clamp(56px, 16vw, 96px)",
-                  textTransform: "uppercase",
-                }}
-              >
-                <span className="block">Kein</span>
-                <span className="block">Standard.</span>
-                <span className="block">Kein Zufall.</span>
-              </span>
+            {/* Live headline — cream type with violet fire-light inside the
+                letters (background-clip:text), per-character decode entrance,
+                and an impact chromatic-aberration beat. Real characters render
+                server-side (aria-label + SSR text) so the headline is the LCP,
+                never blocked by JS, and reads if JS fails. */}
+            <h1
+              data-headline
+              data-fire
+              aria-label="Kein Standard. Kein Zufall."
+              className="hero-fire-text font-display block leading-[0.9] tracking-[-0.02em]"
+              style={{
+                fontSize: "clamp(44px, 9vw, 150px)",
+                textTransform: "uppercase",
+                willChange: "transform, opacity, filter",
+              }}
+            >
+              {HERO_LINES.map((line, li) => (
+                <span key={li} aria-hidden className="block whitespace-nowrap">
+                  {Array.from(line).map((ch, ci) => (
+                    <span
+                      key={ci}
+                      data-char
+                      data-final={ch}
+                      className="inline-block"
+                    >
+                      {ch === " " ? "\u00a0" : ch}
+                    </span>
+                  ))}
+                </span>
+              ))}
             </h1>
-
-            {/* Spacer reserves the headline footprint on desktop, where the
-                visible type lives in the full-bleed SVG window above. */}
-            <div
-              aria-hidden
-              className="hidden md:block"
-              style={{ height: "clamp(220px, 30vw, 430px)" }}
-            />
 
             <p
               data-subhead

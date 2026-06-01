@@ -166,14 +166,59 @@ video {
   .animate-scroll-cue {
     animation: none;
   }
+  /* No ember flow, no glow flicker — final state with a calm static glow. */
+  .hero-fire-text {
+    animation: none;
+    filter: drop-shadow(0 0 16px rgba(124, 108, 255, 0.55));
+  }
 }
 
-/* Hero — neon-violet glow that bleeds around the letterform edges */
+/* Hero headline — cream type with violet fire-light living inside the letters.
+   Base: cream → violet vertical gradient. Top: two violet "ember" radial blobs
+   that slowly pan over ~6s. Clipped to the text via background-clip:text. */
+.hero-fire-text {
+  background-image:
+    radial-gradient(
+      42% 80% at 28% 30%,
+      rgba(184, 166, 255, 0.95) 0%,
+      rgba(124, 108, 255, 0.55) 35%,
+      transparent 70%
+    ),
+    radial-gradient(
+      38% 70% at 72% 65%,
+      rgba(124, 108, 255, 0.9) 0%,
+      rgba(124, 108, 255, 0.4) 40%,
+      transparent 72%
+    ),
+    linear-gradient(180deg, #ece6da 0%, #ece6da 60%, #c4b6ff 100%);
+  background-size: 200% 200%, 180% 180%, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: 0% 0%, 100% 0%, 0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  /* Slow ember flow + neon-violet glow flicker (drop-shadow around glyphs). */
+  animation:
+    heroEmberFlow 6s linear infinite,
+    heroGlowFlicker 3s ease-in-out infinite alternate;
+}
+
+@keyframes heroEmberFlow {
+  from { background-position: 0% 0%, 100% 0%, 0 0; }
+  to   { background-position: 200% 120%, -100% 80%, 0 0; }
+}
+
+/* Outer glow lives on the clipped text via drop-shadow; flicker animates it. */
 @keyframes heroGlowFlicker {
-  from { opacity: 0.75; }
-  to   { opacity: 1; }
-}
-
-.hero-type-glow {
-  animation: heroGlowFlicker 3s ease-in-out infinite alternate;
+  from {
+    filter:
+      drop-shadow(0 0 12px rgba(124, 108, 255, 0.5))
+      drop-shadow(0 0 30px rgba(124, 108, 255, 0.28));
+  }
+  to {
+    filter:
+      drop-shadow(0 0 20px rgba(124, 108, 255, 0.8))
+      drop-shadow(0 0 48px rgba(124, 108, 255, 0.42));
+  }
 }
