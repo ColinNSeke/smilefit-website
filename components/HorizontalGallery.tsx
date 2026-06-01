@@ -48,6 +48,14 @@ export default function HorizontalGallery() {
       const getDistance = () =>
         track.current!.scrollWidth - window.innerWidth;
 
+      const items = gsap.utils.toArray<HTMLElement>("[data-gallery-item]");
+      items.forEach((it) => {
+        gsap.set(it, {
+          transformPerspective: 1400,
+          transformOrigin: "50% 50%",
+        });
+      });
+
       const tween = gsap.to(track.current, {
         x: () => -getDistance(),
         ease: "none",
@@ -56,8 +64,22 @@ export default function HorizontalGallery() {
           start: "top top",
           end: () => `+=${getDistance()}`,
           pin: true,
-          scrub: 1,
+          scrub: 0.6,
           invalidateOnRefresh: true,
+          onUpdate: () => {
+            const vw = window.innerWidth;
+            const center = vw / 2;
+            items.forEach((it) => {
+              const rect = it.getBoundingClientRect();
+              const itemCenter = rect.left + rect.width / 2;
+              const dist = Math.abs(itemCenter - center);
+              const max = vw * 0.6;
+              const t = Math.max(0, 1 - dist / max);
+              const scale = 0.94 + t * 0.08;
+              const ry = ((itemCenter - center) / vw) * 6;
+              gsap.set(it, { scale, rotateY: -ry });
+            });
+          },
         },
       });
 
@@ -128,7 +150,9 @@ export default function HorizontalGallery() {
         {ITEMS.map((it) => (
           <figure
             key={it.index}
+            data-gallery-item
             className={`relative shrink-0 overflow-hidden ${sizeClass(it.size)}`}
+            style={{ willChange: "transform" }}
           >
             <Media
               src={it.src}
