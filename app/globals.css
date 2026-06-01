@@ -134,3 +134,36 @@ video {
   display: block;
   max-width: 100%;
 }
+
+/* Hero — scroll cue indicator (subtle looping descent) */
+@keyframes scrollCueLoop {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(300%);
+    opacity: 0;
+  }
+}
+
+.animate-scroll-cue {
+  animation: scrollCueLoop 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Hero — accent rule horizontal line (used near eyebrow) */
+.hero-accent {
+  background: var(--purple);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scroll-cue {
+    animation: none;
+  }
+}
