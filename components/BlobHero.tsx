@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 
 /**
@@ -103,59 +103,59 @@ const FRAGMENTS: FragmentDef[] = [
 ];
 
 function FragmentBlob({ frag }: { frag: FragmentDef }) {
-  const [failed, setFailed] = useState(false);
   return (
     <div
       data-frag={frag.key}
       className={`absolute ${frag.className}`}
       style={{ willChange: "transform" }}
+      aria-label={frag.alt}
+      role="img"
     >
       <div
-        className="relative h-full w-full"
+        className="relative h-full w-full overflow-hidden"
         style={{
           clipPath: `url(#${frag.clipId})`,
           WebkitClipPath: `url(#${frag.clipId})`,
         }}
       >
-        {!failed && frag.video ? (
+        {/* Always-on fallback base — if real media loads it covers this. */}
+        <div
+          className="absolute inset-0"
+          style={{ background: frag.fallback }}
+        />
+        <div
+          className="absolute inset-0 mix-blend-overlay opacity-50"
+          style={{
+            background:
+              "radial-gradient(60% 70% at 30% 25%, rgba(255,255,255,0.22), transparent 60%), radial-gradient(70% 60% at 75% 80%, rgba(0,0,0,0.5), transparent 65%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(90deg, rgba(255,255,255,0.6) 0 1px, transparent 1px 3px)",
+          }}
+        />
+
+        {/* Media layer on top — never leaks alt text on 404 because it uses
+            either a video element (which shows transparent on error and lets
+            the fallback show through) or a CSS background-image. */}
+        {frag.video ? (
           <video
             src={frag.src}
-            className="h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
             muted
             autoPlay
             loop
             playsInline
             preload="metadata"
-            onError={() => setFailed(true)}
-          />
-        ) : !failed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={frag.src}
-            alt={frag.alt}
-            className="h-full w-full object-cover"
-            onError={() => setFailed(true)}
           />
         ) : (
           <div
-            className="absolute inset-0"
-            style={{ background: frag.fallback }}
-          >
-            <div
-              className="absolute inset-0 mix-blend-overlay opacity-50"
-              style={{
-                background:
-                  "radial-gradient(60% 70% at 30% 25%, rgba(255,255,255,0.22), transparent 60%), radial-gradient(70% 60% at 75% 80%, rgba(0,0,0,0.5), transparent 65%)",
-              }}
-            />
-            <div
-              className="absolute inset-0 opacity-[0.06]"
-              style={{
-                backgroundImage:
-                  "repeating-linear-gradient(90deg, rgba(255,255,255,0.6) 0 1px, transparent 1px 3px)",
-              }}
-            />
-          </div>
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${frag.src})` }}
+          />
         )}
       </div>
     </div>
@@ -354,8 +354,11 @@ export default function BlobHero() {
         <div className="flex items-end justify-between gap-10">
           <div className="max-w-[520px]">
             <h1
-              className="font-display text-[clamp(40px,4.6vw,72px)] leading-[0.92] tracking-[-0.035em]"
-              style={{ textTransform: "uppercase" }}
+              className="font-display leading-[0.92] tracking-[-0.035em]"
+              style={{
+                fontSize: "clamp(40px, 4.6vw, 72px)",
+                textTransform: "uppercase",
+              }}
             >
               <span className="block overflow-hidden">
                 <span data-line className="block">
