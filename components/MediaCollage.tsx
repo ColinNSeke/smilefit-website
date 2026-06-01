@@ -62,23 +62,26 @@ export default function MediaCollage() {
   const root = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    const cleanups: Array<() => void> = [];
     const ctx = gsap.context(() => {
-      // Tile entrance stagger
       gsap.from("[data-tile]", {
         opacity: 0,
-        y: 60,
-        scale: 0.95,
-        duration: 1.1,
+        y: 80,
+        scale: 0.94,
+        duration: 1.2,
         ease: "expo.out",
-        stagger: 0.08,
+        stagger: 0.09,
         scrollTrigger: {
           trigger: root.current,
-          start: "top 70%",
+          start: "top 72%",
         },
       });
 
-      // Parallax per tile
       const tiles = gsap.utils.toArray<HTMLElement>("[data-tile]");
+      const hoverable = window.matchMedia(
+        "(min-width: 768px) and (hover: hover)"
+      ).matches;
+
       tiles.forEach((tile) => {
         const speed = parseFloat(tile.dataset.speed || "-60");
         gsap.to(tile, {
@@ -91,22 +94,60 @@ export default function MediaCollage() {
             scrub: true,
           },
         });
+
+        if (hoverable) {
+          gsap.set(tile, { transformPerspective: 1200 });
+          const qRY = gsap.quickTo(tile, "rotateY", {
+            duration: 0.5,
+            ease: "power3.out",
+          });
+          const qRX = gsap.quickTo(tile, "rotateX", {
+            duration: 0.5,
+            ease: "power3.out",
+          });
+          const qS = gsap.quickTo(tile, "scale", {
+            duration: 0.6,
+            ease: "power3.out",
+          });
+          const onMove = (e: MouseEvent) => {
+            const rect = tile.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / rect.width - 0.5;
+            const my = (e.clientY - rect.top) / rect.height - 0.5;
+            qRY(mx * 10);
+            qRX(-my * 8);
+            qS(1.04);
+          };
+          const onLeave = () => {
+            qRY(0);
+            qRX(0);
+            qS(1);
+          };
+          tile.addEventListener("mousemove", onMove);
+          tile.addEventListener("mouseleave", onLeave);
+          cleanups.push(() => {
+            tile.removeEventListener("mousemove", onMove);
+            tile.removeEventListener("mouseleave", onLeave);
+          });
+        }
       });
 
-      // Label fade
       gsap.from("[data-collage-label]", {
         opacity: 0,
         y: 24,
-        duration: 1,
-        ease: "power3.out",
+        duration: 1.1,
+        ease: "expo.out",
+        stagger: 0.06,
         scrollTrigger: {
           trigger: root.current,
-          start: "top 65%",
+          start: "top 70%",
         },
       });
     }, root);
 
-    return () => ctx.revert();
+    return () => {
+      cleanups.forEach((c) => c());
+      ctx.revert();
+    };
   }, []);
 
   return (

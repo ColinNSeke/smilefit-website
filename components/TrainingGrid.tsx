@@ -69,49 +69,94 @@ export default function TrainingGrid() {
   const root = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    const cleanups: Array<() => void> = [];
     const ctx = gsap.context(() => {
       const cards = gsap.utils.toArray<HTMLElement>("[data-card]");
       cards.forEach((card) => {
-        const media = card.querySelector("[data-card-media]");
+        const media = card.querySelector<HTMLElement>("[data-card-media]");
+        const inner = card.querySelector<HTMLElement>("[data-card-inner]");
         const title = card.querySelector("[data-card-title]");
         const meta = card.querySelector("[data-card-meta]");
 
         gsap.from(media, {
           clipPath: "inset(100% 0 0 0)",
-          duration: 1.2,
+          duration: 1.3,
           ease: "expo.out",
           scrollTrigger: {
             trigger: card,
-            start: "top 85%",
+            start: "top 88%",
           },
         });
 
         gsap.from([title, meta], {
-          y: 30,
+          y: 24,
           opacity: 0,
           duration: 0.9,
           ease: "power3.out",
           stagger: 0.08,
           scrollTrigger: {
             trigger: card,
-            start: "top 80%",
+            start: "top 82%",
           },
         });
+
+        // Hover tilt (desktop only) — applied to inner wrapper so the clip
+        // reveal still works on the outer media element.
+        if (
+          inner &&
+          window.matchMedia("(min-width: 768px) and (hover: hover)").matches
+        ) {
+          gsap.set(inner, { transformPerspective: 1200 });
+          const qRY = gsap.quickTo(inner, "rotateY", {
+            duration: 0.5,
+            ease: "power3.out",
+          });
+          const qRX = gsap.quickTo(inner, "rotateX", {
+            duration: 0.5,
+            ease: "power3.out",
+          });
+          const qScale = gsap.quickTo(inner, "scale", {
+            duration: 0.6,
+            ease: "power3.out",
+          });
+          const onMove = (e: MouseEvent) => {
+            const rect = card.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / rect.width - 0.5;
+            const my = (e.clientY - rect.top) / rect.height - 0.5;
+            qRY(mx * 8);
+            qRX(-my * 6);
+            qScale(1.03);
+          };
+          const onLeave = () => {
+            qRY(0);
+            qRX(0);
+            qScale(1);
+          };
+          card.addEventListener("mousemove", onMove);
+          card.addEventListener("mouseleave", onLeave);
+          cleanups.push(() => {
+            card.removeEventListener("mousemove", onMove);
+            card.removeEventListener("mouseleave", onLeave);
+          });
+        }
       });
 
       gsap.from("[data-grid-title]", {
         y: 40,
         opacity: 0,
-        duration: 1,
-        ease: "power3.out",
+        duration: 1.1,
+        ease: "expo.out",
         scrollTrigger: {
           trigger: root.current,
-          start: "top 75%",
+          start: "top 80%",
         },
       });
     }, root);
 
-    return () => ctx.revert();
+    return () => {
+      cleanups.forEach((c) => c());
+      ctx.revert();
+    };
   }, []);
 
   return (
@@ -152,13 +197,30 @@ export default function TrainingGrid() {
             <div
               data-card-media
               className="relative h-full w-full overflow-hidden"
+              style={{ perspective: "1200px" }}
             >
-              <Media
-                src={card.src}
-                video={card.video}
-                alt={card.title}
-                className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-              />
+              <div
+                data-card-inner
+                className="relative h-full w-full"
+                style={{
+                  transformStyle: "preserve-3d",
+                  willChange: "transform",
+                }}
+              >
+                <Media
+                  src={card.src}
+                  video={card.video}
+                  alt={card.title}
+                  className="h-full w-full object-cover"
+                />
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 50%, rgba(0,0,0,0.35) 100%)",
+                  }}
+                />
+              </div>
             </div>
 
             <div className="mt-5 flex items-start justify-between gap-6">
