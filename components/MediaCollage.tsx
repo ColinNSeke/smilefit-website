@@ -10,39 +10,68 @@ type Panel = {
   src: string;
   video?: boolean;
   alt: string;
+  /** Tailwind classes for the intentional REST slot. */
   className: string;
+  /** z-index — main has the highest visual priority. */
+  z: number;
   initial: gsap.TweenVars;
   enterAt: number;
   enterDuration: number;
   enterTween: gsap.TweenVars;
 };
 
+// FIVE INTENTIONAL SLOTS — composed for clear separation. No slot covers
+// the subject of another. Touch points are deliberate (rightSlot beside
+// main, accentSlot peeking from the right edge behind rightSlot).
 const PANELS: Panel[] = [
+  // mainSlot — center-right dominant
   {
     key: "main",
     src: "/media/gym-01.jpg",
     alt: "Sled push athlete",
-    className: "left-[22%] top-[7%] w-[42vw] aspect-[4/5]",
+    className: "left-[30%] top-[10%] w-[40vw] h-[60vh]",
+    z: 30,
     initial: {
-      scale: 1.16,
+      scale: 1.12,
       rotateY: 0,
       opacity: 1,
       transformPerspective: 1600,
     },
     enterAt: 0,
     enterDuration: 0.5,
+    enterTween: { scale: 1, rotateY: -6, ease: "none" },
+  },
+  // leftSlot — left vertical column, behind main
+  {
+    key: "left",
+    src: "/media/gym-02.jpg",
+    alt: "Hex-light gym interior",
+    className: "left-[3%] top-[14%] w-[22vw] h-[52vh]",
+    z: 15,
+    initial: {
+      opacity: 0,
+      xPercent: -80,
+      rotateY: 22,
+      scale: 0.94,
+      transformPerspective: 1600,
+    },
+    enterAt: 0.08,
+    enterDuration: 0.22,
     enterTween: {
+      opacity: 1,
+      xPercent: 0,
+      rotateY: 4,
       scale: 1,
-      rotateY: -7,
-      xPercent: 4,
       ease: "none",
     },
   },
+  // rightSlot — upper-right small companion (no overlap with main)
   {
-    key: "p2",
-    src: "/media/gym-02.jpg",
-    alt: "Hex-light gym interior",
-    className: "right-[3%] top-[9%] w-[23vw] aspect-[4/5]",
+    key: "right",
+    src: "/media/gym-04.jpg",
+    alt: "Cable grip",
+    className: "right-[4%] top-[12%] w-[18vw] h-[34vh]",
+    z: 20,
     initial: {
       opacity: 0,
       xPercent: 80,
@@ -50,7 +79,7 @@ const PANELS: Panel[] = [
       scale: 0.94,
       transformPerspective: 1600,
     },
-    enterAt: 0.08,
+    enterAt: 0.22,
     enterDuration: 0.22,
     enterTween: {
       opacity: 1,
@@ -60,19 +89,21 @@ const PANELS: Panel[] = [
       ease: "none",
     },
   },
+  // bottomSlot — wide horizontal below main (no vertical overlap)
   {
-    key: "p3",
+    key: "bottom",
     src: "/media/gym-03.jpg",
     alt: "Rooftop sunset",
-    className: "left-[5%] bottom-[10%] w-[28vw] aspect-[5/4]",
+    className: "left-[28%] bottom-[8%] w-[34vw] h-[20vh]",
+    z: 25,
     initial: {
       opacity: 0,
-      yPercent: 80,
-      rotateZ: -3,
-      scale: 0.94,
+      yPercent: 90,
+      rotateZ: -2,
+      scale: 0.96,
       transformPerspective: 1600,
     },
-    enterAt: 0.22,
+    enterAt: 0.36,
     enterDuration: 0.22,
     enterTween: {
       opacity: 1,
@@ -82,65 +113,24 @@ const PANELS: Panel[] = [
       ease: "none",
     },
   },
+  // accentSlot — thin vertical accent at far right edge, deepest layer
   {
-    key: "p4",
-    src: "/media/gym-04.jpg",
-    alt: "Cable grip",
-    className: "left-[8%] top-[42%] w-[14vw] aspect-[3/4]",
-    initial: {
-      opacity: 0,
-      xPercent: -90,
-      rotateY: 24,
-      scale: 0.86,
-      transformPerspective: 1600,
-    },
-    enterAt: 0.34,
-    enterDuration: 0.2,
-    enterTween: {
-      opacity: 0.95,
-      xPercent: 0,
-      rotateY: 8,
-      scale: 1,
-      ease: "none",
-    },
-  },
-  {
-    key: "p5",
+    key: "accent",
     src: "/media/gym-05.jpg",
     alt: "Dumbbell rack purple",
-    className: "right-[10%] bottom-[14%] w-[22vw] aspect-[4/5]",
+    className: "right-[0%] bottom-[22%] w-[9vw] h-[30vh]",
+    z: 5,
     initial: {
       opacity: 1,
       clipPath: "inset(100% 0 0 0)",
       WebkitClipPath: "inset(100% 0 0 0)",
       transformPerspective: 1600,
     },
-    enterAt: 0.46,
-    enterDuration: 0.24,
+    enterAt: 0.5,
+    enterDuration: 0.26,
     enterTween: {
       clipPath: "inset(0% 0 0 0)",
       WebkitClipPath: "inset(0% 0 0 0)",
-      ease: "none",
-    },
-  },
-  {
-    key: "p6",
-    src: "/media/hero-b.mp4",
-    video: true,
-    alt: "Gym atmosphere clip",
-    className: "right-[2%] bottom-[3%] w-[14vw] aspect-[3/4]",
-    initial: {
-      opacity: 0,
-      scale: 0.7,
-      yPercent: 30,
-      transformPerspective: 1600,
-    },
-    enterAt: 0.6,
-    enterDuration: 0.2,
-    enterTween: {
-      opacity: 1,
-      scale: 1,
-      yPercent: 0,
       ease: "none",
     },
   },
@@ -391,6 +381,7 @@ export default function MediaCollage() {
               data-panel={p.key}
               className={`absolute overflow-hidden ${p.className}`}
               style={{
+                zIndex: p.z,
                 willChange: "transform, clip-path",
                 boxShadow:
                   "0 40px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset",
@@ -417,7 +408,7 @@ export default function MediaCollage() {
         {/* Top-left label */}
         <div
           data-label
-          className="absolute left-6 top-8 z-[20] text-[11px] uppercase tracking-[0.28em] text-[#f2efe6]/55 md:left-10 md:top-10"
+          className="absolute left-6 top-8 z-[40] text-[11px] uppercase tracking-[0.28em] text-[#f2efe6]/55 md:left-10 md:top-10"
           style={{
             fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
             fontWeight: 600,
@@ -426,27 +417,33 @@ export default function MediaCollage() {
           Atmosphäre / 01
         </div>
 
-        {/* Bottom-left main text */}
-        <div className="absolute left-6 bottom-8 z-[20] max-w-[680px] md:left-10 md:bottom-10">
+        {/* Bottom-left main text — sits in the clean strip left of bottomSlot */}
+        <div className="absolute left-6 bottom-10 z-[40] max-w-[24vw] md:left-10 md:bottom-12">
           <h2
             className="font-display leading-[0.95] tracking-[-0.035em]"
             style={{
-              fontSize: "clamp(28px, 3.4vw, 64px)",
+              fontSize: "clamp(20px, 1.8vw, 36px)",
               textTransform: "uppercase",
             }}
           >
             <span className="block overflow-hidden">
               <span data-title-line className="block">
-                Der Raum trainiert mit.
+                Der Raum
+              </span>
+            </span>
+            <span className="block overflow-hidden">
+              <span data-title-line className="block">
+                trainiert mit.
               </span>
             </span>
           </h2>
         </div>
 
-        {/* Bottom-right micro label */}
+        {/* Bottom-right micro label — pulled in slightly so accentSlot edge
+            doesn't crowd it */}
         <div
           data-micro
-          className="absolute right-6 bottom-8 z-[20] text-right text-[11px] uppercase tracking-[0.28em] text-[#f2efe6]/55 md:right-10 md:bottom-10"
+          className="absolute right-[14vw] bottom-8 z-[40] text-right text-[11px] uppercase tracking-[0.28em] text-[#f2efe6]/55 md:right-[14vw] md:bottom-10"
           style={{
             fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
             fontWeight: 600,
