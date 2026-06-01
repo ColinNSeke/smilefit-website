@@ -1,35 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 /**
- * SmileFit — Title-sequence hero.
+ * SmileFit — Multi-scene cinematic hero.
  *
- * Three mechanics:
- *  1. Z-depth — headline (L1) sits BEHIND a foreground subject cutout (L2),
- *     so the dumbbell/hand passes in front of the type.
- *  2. Title reveal — staggered, masked line-by-line entrance on load,
- *     like a film credit sequence.
- *  3. Scroll morph — pinned scrub timeline: video scales, type blurs and
- *     lifts away, subject drifts up out of frame, fade-to-black seamlessly
- *     hands off to the next section.
+ * Mechanics:
+ *  Scene 0 — Impact load: the masked headline settles (1.06 → 1) with a
+ *    one-frame screen shake + grain/vignette pulse; the neon eyebrow rule
+ *    draws in; nav / logo / subhead / CTA stagger in.
+ *  Scene 1 — Type as window: an SVG mask paints near-black over the footage
+ *    everywhere EXCEPT the letterforms, so the video is visible only inside
+ *    the type. Vector mask → crisp at any size.
+ *  Scene 2 — Flood + handoff: a pinned, scrubbed timeline scales the masked
+ *    type up and fades the near-black surround so the footage floods the
+ *    viewport, fades the eyebrow/subhead/CTA, then settles to near-black so
+ *    the (near-black) room section takes over with no empty frame.
  *
- * Layers:
- *   L0 (z=0)   full-bleed background <video> with poster
- *   L1 (z=10)  headline block (eyebrow + h1 + subhead + CTA)
- *   L2 (z=20)  alpha-cutout subject  →  /public/hero/subject.png
- *               (TODO: drop the actual alpha PNG here; graceful fallback
- *                hides this layer if the asset 404s.)
+ * Desktop also gets a cursor spotlight (lights the footage seen through the
+ * letters) and a magnetic CTA. Mobile / reduced-motion fall back to a calm
+ * impact-fade with a plainly-rendered cream headline.
  *
- * Reduced-motion: pin / parallax / mask reveals are skipped; final state
- * renders with a calm fade.
+ * The real <h1> is always in the DOM (visible on mobile, sr-only on desktop
+ * where the SVG carries the same words) so the headline is never blocked by
+ * JS and stays readable if JS fails.
  */
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
   const cta = useRef<HTMLAnchorElement | null>(null);
-  const [subjectFailed, setSubjectFailed] = useState(false);
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
@@ -37,199 +37,193 @@ export default function CinematicHero() {
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
-    const hover = window.matchMedia(
-      "(min-width: 768px) and (hover: hover)"
-    ).matches;
 
     const ctx = gsap.context(() => {
-      if (reduce) {
-        // Calm fade-in for everything, no pin, no parallax.
+      const mm = gsap.matchMedia();
+
+      // ===================== DESKTOP =====================
+      mm.add("(min-width: 768px)", () => {
+        const hover = window.matchMedia("(hover: hover)").matches;
+
+        if (reduce) {
+          // Final states only — no shake, no scrub.
+          gsap.set("[data-window], [data-mask]", { opacity: 1, scale: 1 });
+          gsap.set("[data-eyebrow-rule]", { scaleX: 1 });
+          gsap.set(
+            "[data-nav], [data-eyebrow-text], [data-subhead], [data-cta], [data-scrollcue]",
+            { opacity: 1, y: 0, x: 0 }
+          );
+          return;
+        }
+
+        // -------- Scene 0: impact load --------
+        const intro = gsap.timeline({
+          defaults: { ease: "power4.out" },
+          delay: 0.12,
+        });
+
+        // Masked headline settles with a fast overshoot.
+        intro.from(
+          "[data-window]",
+          { scale: 1.06, duration: 1.1, ease: "expo.out" },
+          0
+        );
+        // One-frame screen shake.
+        intro.to(
+          root.current,
+          {
+            keyframes: { x: [0, -4, 4, -3, 2, 0] },
+            duration: 0.34,
+            ease: "none",
+          },
+          0.06
+        );
+        // Grain + vignette pulse.
+        intro.fromTo(
+          "[data-grain]",
+          { opacity: 0.22 },
+          { opacity: 0.08, duration: 0.7, ease: "power2.out" },
+          0
+        );
+        intro.fromTo(
+          "[data-vignette]",
+          { opacity: 0.85 },
+          { opacity: 0.5, duration: 0.7, ease: "power2.out" },
+          0
+        );
+
+        // Nav + logo drop in.
+        intro.from(
+          "[data-nav]",
+          { y: -16, opacity: 0, duration: 0.8, stagger: 0.05 },
+          0.15
+        );
+        // Eyebrow rule draws, then text.
+        intro.from(
+          "[data-eyebrow-rule]",
+          { scaleX: 0, duration: 0.7, ease: "expo.out" },
+          0.25
+        );
+        intro.from(
+          "[data-eyebrow-text]",
+          { opacity: 0, x: -8, duration: 0.6 },
+          0.45
+        );
+        intro.from("[data-subhead]", { opacity: 0, y: 14, duration: 0.7 }, 0.7);
+        intro.from("[data-cta]", { opacity: 0, y: 12, duration: 0.7 }, 0.82);
+        intro.from(
+          "[data-scrollcue]",
+          { opacity: 0, duration: 0.6 },
+          0.95
+        );
+
+        // -------- Scene 2: flood + handoff (pinned scrub) --------
+        const morph = gsap.timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: root.current,
+            start: "top top",
+            end: "+=120%",
+            pin: true,
+            scrub: 0.8,
+            anticipatePin: 1,
+          },
+        });
+
+        morph
+          // Footage pushes in.
+          .to("[data-bg]", { scale: 1.16 }, 0)
+          // Type scales up and the near-black surround fades → footage floods.
+          .to("[data-mask]", { scale: 1.55, opacity: 0 }, 0)
+          // UI clears out.
+          .to("[data-eyebrow]", { opacity: 0, y: -10 }, 0.2)
+          .to("[data-subhead]", { opacity: 0, y: -10 }, 0.25)
+          .to("[data-cta]", { opacity: 0, y: -10 }, 0.2)
+          .to("[data-scrollcue]", { opacity: 0 }, 0.1)
+          .to("[data-vignette]", { opacity: 0.85 }, 0.4)
+          // Settle to near-black so the (near-black) room hands off seamlessly.
+          .to("[data-handoff]", { opacity: 1 }, 0.82);
+
+        // -------- Cursor spotlight (lights footage through the type) --------
+        if (hover && root.current) {
+          const rootEl = root.current;
+          const qX = gsap.quickTo("[data-cursorlight]", "x", {
+            duration: 0.5,
+            ease: "power3.out",
+          });
+          const qY = gsap.quickTo("[data-cursorlight]", "y", {
+            duration: 0.5,
+            ease: "power3.out",
+          });
+          gsap.set("[data-cursorlight]", { opacity: 0 });
+          const onMove = (e: MouseEvent) => {
+            const rect = rootEl.getBoundingClientRect();
+            qX(e.clientX - rect.left);
+            qY(e.clientY - rect.top);
+            gsap.to("[data-cursorlight]", {
+              opacity: 1,
+              duration: 0.4,
+              overwrite: "auto",
+            });
+          };
+          const onLeave = () =>
+            gsap.to("[data-cursorlight]", { opacity: 0, duration: 0.4 });
+          rootEl.addEventListener("mousemove", onMove);
+          rootEl.addEventListener("mouseleave", onLeave);
+          cleanups.push(() => {
+            rootEl.removeEventListener("mousemove", onMove);
+            rootEl.removeEventListener("mouseleave", onLeave);
+          });
+        }
+
+        // -------- Magnetic CTA --------
+        if (hover && cta.current) {
+          const btn = cta.current;
+          const qX = gsap.quickTo(btn, "x", {
+            duration: 0.35,
+            ease: "power3.out",
+          });
+          const qY = gsap.quickTo(btn, "y", {
+            duration: 0.35,
+            ease: "power3.out",
+          });
+          const onCtaMove = (e: MouseEvent) => {
+            const rect = btn.getBoundingClientRect();
+            const x = e.clientX - (rect.left + rect.width / 2);
+            const y = e.clientY - (rect.top + rect.height / 2);
+            const dist = Math.hypot(x, y);
+            const radius = 140;
+            const cap = 12;
+            if (dist < radius) {
+              const f = 1 - dist / radius;
+              qX(Math.max(-cap, Math.min(cap, x * 0.3 * f)));
+              qY(Math.max(-cap, Math.min(cap, y * 0.3 * f)));
+            } else {
+              qX(0);
+              qY(0);
+            }
+          };
+          window.addEventListener("mousemove", onCtaMove);
+          cleanups.push(() =>
+            window.removeEventListener("mousemove", onCtaMove)
+          );
+        }
+      });
+
+      // ===================== MOBILE =====================
+      mm.add("(max-width: 767px)", () => {
+        if (reduce) return;
         gsap.from(
-          "[data-nav], [data-eyebrow], [data-headline] [data-line], [data-subhead], [data-cta], [data-subject]",
+          "[data-nav], [data-eyebrow], [data-h1-mobile], [data-subhead], [data-cta]",
           {
             opacity: 0,
-            duration: 0.6,
-            ease: "power2.out",
-            stagger: 0.05,
+            y: 22,
+            duration: 0.8,
+            ease: "power3.out",
+            stagger: 0.08,
           }
         );
-        return;
-      }
-
-      // ============== INTRO TIMELINE ==============
-      const intro = gsap.timeline({
-        defaults: { ease: "power4.out" },
-        delay: 0.15,
       });
-
-      // Nav + logo
-      intro.from(
-        "[data-nav]",
-        { y: -16, opacity: 0, duration: 0.8, stagger: 0.05 },
-        0
-      );
-
-      // Eyebrow rule draws in, then text fades
-      intro.from(
-        "[data-eyebrow-rule]",
-        { scaleX: 0, duration: 0.75, ease: "expo.out" },
-        0.3
-      );
-      intro.from(
-        "[data-eyebrow-text]",
-        { opacity: 0, x: -8, duration: 0.6 },
-        0.5
-      );
-
-      // Headline: line-by-line mask-up reveal (film credits)
-      intro.from(
-        "[data-line]",
-        {
-          yPercent: 110,
-          duration: 0.95,
-          stagger: 0.12,
-          ease: "power4.out",
-        },
-        0.4
-      );
-
-      // Subhead, CTA
-      intro.from(
-        "[data-subhead]",
-        { opacity: 0, y: 14, duration: 0.7 },
-        1.05
-      );
-      intro.from("[data-cta]", { opacity: 0, y: 12, duration: 0.7 }, 1.18);
-      intro.from(
-        "[data-scrollcue]",
-        { opacity: 0, duration: 0.6 },
-        1.3
-      );
-
-      // Foreground subject drifts in from below at a different rate
-      intro.from(
-        "[data-subject]",
-        {
-          opacity: 0,
-          y: 40,
-          scale: 1.05,
-          duration: 1.3,
-          ease: "expo.out",
-        },
-        0.6
-      );
-
-      // ============== SCROLL MORPH (pinned, scrubbed) ==============
-      const morph = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: root.current,
-          start: "top top",
-          end: "+=110%",
-          pin: true,
-          scrub: 0.8,
-          anticipatePin: 1,
-        },
-      });
-
-      morph
-        // L0: video pushes deeper into frame
-        .to("[data-bg]", { scale: 1.12, yPercent: -4 }, 0)
-        // L2: subject drifts up
-        .to("[data-subject]", { yPercent: -8 }, 0)
-        // Subtle vignette deepens early
-        .to("[data-vignette]", { opacity: 1 }, 0)
-        // Mid: type starts to dissolve (blur + lift + fade)
-        .to(
-          "[data-headline]",
-          { filter: "blur(8px)", opacity: 0, y: -60 },
-          0.5
-        )
-        .to("[data-eyebrow]", { opacity: 0 }, 0.45)
-        .to("[data-subhead]", { opacity: 0 }, 0.5)
-        .to("[data-cta]", { opacity: 0, y: -14 }, 0.45)
-        .to("[data-scrollcue]", { opacity: 0 }, 0.4)
-        // Late: subject lifts out + background fades so the next section
-        // (dark MediaCollage) takes over without a visible boundary.
-        .to("[data-subject]", { yPercent: -110, opacity: 0 }, 0.6)
-        .to("[data-bg]", { opacity: 0.25, scale: 1.2 }, 0.7)
-        .to("[data-handoff]", { opacity: 1 }, 0.75);
-
-      // ============== POINTER PARALLAX (desktop) ==============
-      if (hover && root.current) {
-        const rootEl = root.current;
-        const qBgX = gsap.quickTo("[data-bg]", "x", {
-          duration: 1.4,
-          ease: "power3.out",
-        });
-        const qBgY = gsap.quickTo("[data-bg]", "y", {
-          duration: 1.4,
-          ease: "power3.out",
-        });
-        const qHX = gsap.quickTo("[data-headline]", "x", {
-          duration: 0.9,
-          ease: "power3.out",
-        });
-        const qHY = gsap.quickTo("[data-headline]", "y", {
-          duration: 0.9,
-          ease: "power3.out",
-        });
-        const qSX = gsap.quickTo("[data-subject]", "x", {
-          duration: 0.7,
-          ease: "power3.out",
-        });
-        const qSY = gsap.quickTo("[data-subject]", "y", {
-          duration: 0.7,
-          ease: "power3.out",
-        });
-        const onMove = (e: MouseEvent) => {
-          const rect = rootEl.getBoundingClientRect();
-          const mx = (e.clientX - rect.left) / rect.width - 0.5;
-          const my = (e.clientY - rect.top) / rect.height - 0.5;
-          // Back slow, front fast
-          qBgX(mx * -8);
-          qBgY(my * -6);
-          qHX(mx * 6);
-          qHY(my * 4);
-          qSX(mx * 14);
-          qSY(my * 10);
-        };
-        window.addEventListener("mousemove", onMove);
-        cleanups.push(() => window.removeEventListener("mousemove", onMove));
-      }
-
-      // ============== MAGNETIC CTA ==============
-      if (hover && cta.current) {
-        const btn = cta.current;
-        const qX = gsap.quickTo(btn, "x", {
-          duration: 0.35,
-          ease: "power3.out",
-        });
-        const qY = gsap.quickTo(btn, "y", {
-          duration: 0.35,
-          ease: "power3.out",
-        });
-        const onCtaMove = (e: MouseEvent) => {
-          const rect = btn.getBoundingClientRect();
-          const x = e.clientX - (rect.left + rect.width / 2);
-          const y = e.clientY - (rect.top + rect.height / 2);
-          const dist = Math.hypot(x, y);
-          const radius = 140;
-          const cap = 12;
-          if (dist < radius) {
-            const f = 1 - dist / radius;
-            qX(Math.max(-cap, Math.min(cap, x * 0.3 * f)));
-            qY(Math.max(-cap, Math.min(cap, y * 0.3 * f)));
-          } else {
-            qX(0);
-            qY(0);
-          }
-        };
-        window.addEventListener("mousemove", onCtaMove);
-        cleanups.push(() =>
-          window.removeEventListener("mousemove", onCtaMove)
-        );
-      }
     }, root);
 
     return () => {
@@ -244,11 +238,7 @@ export default function CinematicHero() {
       className="relative h-screen w-full overflow-hidden bg-[#050505] text-[#f2efe6]"
     >
       {/* ============ L0 — BACKGROUND VIDEO ============ */}
-      <div
-        data-bg
-        className="absolute inset-0 z-0"
-        style={{ willChange: "transform" }}
-      >
+      <div data-bg className="absolute inset-0 z-0" style={{ willChange: "transform" }}>
         <video
           src="/media/hero-a.mp4"
           poster="/hero/poster.jpg"
@@ -259,27 +249,32 @@ export default function CinematicHero() {
           playsInline
           preload="metadata"
         />
-        {/* Cinematic scrim — pushes the video into the dark register */}
+        {/* Violet wash (hex-light reference) */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 28%, rgba(0,0,0,0.30) 65%, rgba(0,0,0,0.88) 100%)",
-          }}
-        />
-        {/* Subtle violet wash (hex-light reference) */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(120% 80% at 18% 12%, rgba(124,108,255,0.10), transparent 55%)",
+              "radial-gradient(120% 80% at 18% 12%, rgba(124,108,255,0.12), transparent 55%)",
           }}
         />
       </div>
 
+      {/* Cursor spotlight — desktop only, sits under the mask so it lights
+          the footage seen through the letterforms. */}
+      <div
+        data-cursorlight
+        className="pointer-events-none absolute left-0 top-0 z-[3] hidden h-[640px] w-[640px] -translate-x-1/2 -translate-y-1/2 mix-blend-screen md:block"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(124,108,255,0.10) 32%, transparent 62%)",
+          willChange: "transform, opacity",
+        }}
+      />
+
       {/* Grain */}
       <div
-        className="pointer-events-none absolute inset-0 z-[2] opacity-[0.08] mix-blend-overlay"
+        data-grain
+        className="pointer-events-none absolute inset-0 z-[4] opacity-[0.08] mix-blend-overlay"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")",
@@ -287,10 +282,67 @@ export default function CinematicHero() {
         }}
       />
 
-      {/* Vignette (deepens on scrub) */}
+      {/* ============ L1 — TYPE-AS-WINDOW (desktop) ============ */}
+      {/* SVG paints near-black over the footage except inside the letters. */}
+      <div
+        data-window
+        className="pointer-events-none absolute inset-0 z-[5] hidden md:block"
+        style={{ willChange: "transform" }}
+      >
+        <div
+          data-mask
+          className="absolute inset-0"
+          style={{ willChange: "transform, opacity", transformOrigin: "12% 64%" }}
+        >
+          <svg
+            className="h-full w-full"
+            viewBox="0 0 1280 720"
+            preserveAspectRatio="xMidYMid slice"
+            role="presentation"
+            aria-hidden="true"
+          >
+            <defs>
+              <mask id="heroTypeMask">
+                <rect x="0" y="0" width="1280" height="720" fill="#fff" />
+                <g
+                  fill="#000"
+                  style={{
+                    fontFamily:
+                      '"Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif',
+                    fontWeight: 900,
+                  }}
+                  fontSize="138"
+                  letterSpacing="-3"
+                >
+                  <text x="60" y="408">
+                    KEIN
+                  </text>
+                  <text x="60" y="546">
+                    STANDARD.
+                  </text>
+                  <text x="60" y="684">
+                    KEIN ZUFALL.
+                  </text>
+                </g>
+              </mask>
+            </defs>
+            {/* Near-black surround with the letters knocked out. */}
+            <rect
+              x="0"
+              y="0"
+              width="1280"
+              height="720"
+              fill="#050505"
+              mask="url(#heroTypeMask)"
+            />
+          </svg>
+        </div>
+      </div>
+
+      {/* Vignette (over the surround, deepens on scrub) */}
       <div
         data-vignette
-        className="pointer-events-none absolute inset-0 z-[2] opacity-50"
+        className="pointer-events-none absolute inset-0 z-[6] opacity-50"
         style={{
           background:
             "radial-gradient(130% 90% at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.92) 100%)",
@@ -340,12 +392,8 @@ export default function CinematicHero() {
         </a>
       </header>
 
-      {/* ============ L1 — HEADLINE BLOCK ============ */}
-      <div
-        data-headline
-        className="absolute inset-x-0 bottom-0 z-[10] px-6 pb-12 md:px-10 md:pb-16"
-        style={{ willChange: "transform, filter, opacity" }}
-      >
+      {/* ============ L2 — UI BLOCK (eyebrow / headline / subhead / CTA) ============ */}
+      <div className="absolute inset-x-0 bottom-0 z-[10] px-6 pb-12 md:px-10 md:pb-16">
         <div className="flex items-end justify-between gap-10">
           <div className="max-w-[820px]">
             {/* Eyebrow with accent rule */}
@@ -367,30 +415,33 @@ export default function CinematicHero() {
               </span>
             </div>
 
-            {/* H1 — three stacked lines, each masked for reveal */}
-            <h1
-              className="font-display leading-[0.88] tracking-[-0.02em]"
-              style={{
-                fontSize: "clamp(60px, 9vw, 168px)",
-                textTransform: "uppercase",
-              }}
-            >
-              <span className="block overflow-hidden">
-                <span data-line className="block">
-                  Kein
-                </span>
-              </span>
-              <span className="block overflow-hidden">
-                <span data-line className="block">
-                  Standard.
-                </span>
-              </span>
-              <span className="block overflow-hidden">
-                <span data-line className="block">
-                  Kein Zufall.
-                </span>
+            {/* Real <h1> — visible on mobile, sr-only on desktop (where the
+                SVG window carries the same words). Always in the DOM so the
+                headline is never blocked by JS and reads if JS fails. */}
+            <h1 className="md:sr-only">
+              <span className="sr-only">Kein Standard. Kein Zufall.</span>
+              <span
+                data-h1-mobile
+                aria-hidden
+                className="font-display block leading-[0.88] tracking-[-0.02em] md:hidden"
+                style={{
+                  fontSize: "clamp(56px, 16vw, 96px)",
+                  textTransform: "uppercase",
+                }}
+              >
+                <span className="block">Kein</span>
+                <span className="block">Standard.</span>
+                <span className="block">Kein Zufall.</span>
               </span>
             </h1>
+
+            {/* Spacer reserves the headline footprint on desktop, where the
+                visible type lives in the full-bleed SVG window above. */}
+            <div
+              aria-hidden
+              className="hidden md:block"
+              style={{ height: "clamp(220px, 30vw, 430px)" }}
+            />
 
             <p
               data-subhead
@@ -411,8 +462,7 @@ export default function CinematicHero() {
                 href="#kontakt"
                 className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#f2efe6]/85 px-5 py-3 text-[11px] uppercase tracking-[0.22em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
                 style={{
-                  fontFamily:
-                    "Helvetica Neue, Helvetica, Arial, sans-serif",
+                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
                   fontWeight: 600,
                   willChange: "transform",
                 }}
@@ -435,7 +485,7 @@ export default function CinematicHero() {
             </div>
           </div>
 
-          {/* Scroll cue (animated) */}
+          {/* Animated scroll cue */}
           <div
             data-scrollcue
             className="hidden flex-col items-end gap-3 text-[#f2efe6]/70 md:flex"
@@ -454,33 +504,7 @@ export default function CinematicHero() {
         </div>
       </div>
 
-      {/* ============ L2 — FOREGROUND SUBJECT CUTOUT ============ */}
-      {/*
-        TODO: drop an alpha cutout at /public/hero/subject.png (or upgrade
-        to an alpha video, WebM/VP9 or HEVC). Without the asset, this
-        layer is hidden gracefully — the hero composition still reads
-        correctly.
-      */}
-      {!subjectFailed && (
-        <div
-          data-subject
-          className="pointer-events-none absolute inset-0 z-[20] hidden md:block"
-          style={{ willChange: "transform, opacity" }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/hero/subject.png"
-            alt=""
-            aria-hidden
-            className="absolute inset-x-0 bottom-0 h-full w-full object-contain object-bottom"
-            onError={() => setSubjectFailed(true)}
-          />
-        </div>
-      )}
-
       {/* ============ HANDOFF VEIL ============ */}
-      {/* Late-scroll fade to flat black so the pinned hero unpins into
-          MediaCollage with no visible boundary. */}
       <div
         data-handoff
         className="pointer-events-none absolute inset-0 z-[30] bg-[#050505] opacity-0"

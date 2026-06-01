@@ -2,7 +2,7 @@
 
 import SmoothScroll from "./SmoothScroll";
 import CinematicHero from "./CinematicHero";
-import MediaCollage from "./MediaCollage";
+import RoomPowerOn from "./RoomPowerOn";
 import TrainingGrid from "./TrainingGrid";
 import EditorialStatement from "./EditorialStatement";
 import HorizontalGallery from "./HorizontalGallery";
@@ -14,7 +14,7 @@ export default function SmileFitLanding() {
       <SmoothScroll />
       <main className="relative w-full">
         <CinematicHero />
-        <MediaCollage />
+        <RoomPowerOn />
         <TrainingGrid />
         <EditorialStatement />
         <HorizontalGallery />
