@@ -167,3 +167,13 @@ video {
     animation: none;
   }
 }
+
+/* Hero — neon-violet glow that bleeds around the letterform edges */
+@keyframes heroGlowFlicker {
+  from { opacity: 0.75; }
+  to   { opacity: 1; }
+}
+
+.hero-type-glow {
+  animation: heroGlowFlicker 3s ease-in-out infinite alternate;
+}

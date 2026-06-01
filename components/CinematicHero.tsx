@@ -243,6 +243,7 @@ export default function CinematicHero() {
           src="/media/hero-a.mp4"
           poster="/hero/poster.jpg"
           className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: "brightness(1.15) saturate(1.1)" }}
           muted
           autoPlay
           loop
@@ -281,6 +282,39 @@ export default function CinematicHero() {
           backgroundSize: "180px 180px",
         }}
       />
+
+      {/* Neon-violet glow bleeds around the letterform edges — sits ABOVE the
+          near-black mask with mix-blend-mode: screen so the purple halos show
+          through the black surround. Flickers via CSS for "purple fire" energy. */}
+      <div
+        className="hero-type-glow pointer-events-none absolute inset-0 z-[6] hidden mix-blend-screen md:block"
+        aria-hidden
+      >
+        <svg
+          className="h-full w-full"
+          viewBox="0 0 1280 720"
+          preserveAspectRatio="xMidYMid slice"
+          style={{
+            filter:
+              "drop-shadow(0 0 18px rgba(124,108,255,.65)) drop-shadow(0 0 40px rgba(124,108,255,.35))",
+          }}
+        >
+          <g
+            fill="rgba(124,108,255,0.45)"
+            style={{
+              fontFamily:
+                '"Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif',
+              fontWeight: 900,
+            }}
+            fontSize="138"
+            letterSpacing="-3"
+          >
+            <text x="60" y="408">KEIN</text>
+            <text x="60" y="546">STANDARD.</text>
+            <text x="60" y="684">KEIN ZUFALL.</text>
+          </g>
+        </svg>
+      </div>
 
       {/* ============ L1 — TYPE-AS-WINDOW (desktop) ============ */}
       {/* SVG paints near-black over the footage except inside the letters. */}
@@ -342,7 +376,7 @@ export default function CinematicHero() {
       {/* Vignette (over the surround, deepens on scrub) */}
       <div
         data-vignette
-        className="pointer-events-none absolute inset-0 z-[6] opacity-50"
+        className="pointer-events-none absolute inset-0 z-[7] opacity-50"
         style={{
           background:
             "radial-gradient(130% 90% at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.92) 100%)",
