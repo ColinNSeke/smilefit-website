@@ -37,15 +37,15 @@ export interface HeroOverlayHandle {
 
 // Global feel knobs — raise for more visible motion, lower for calmer.
 const INTENSITY = {
-  plateSpin: 1.5, // how far plates rotate across the scroll
-  dumbbellTilt: 1.05,
-  kettlebellSpin: 0.7,
-  barbellSpin: 0.85,
-  ringSpin: 2.1,
-  orbit: 0.85, // peak-phase orbital drift amplitude
-  drift: 0.5, // mid-phase positional drift amplitude (all objects)
+  plateSpin: 2.1,     // how far plates rotate across the scroll
+  dumbbellTilt: 1.4,
+  kettlebellSpin: 0.95,
+  barbellSpin: 1.15,
+  ringSpin: 2.6,
+  orbit: 1.1,         // peak-phase orbital drift amplitude
+  drift: 0.7,         // mid-phase positional drift amplitude (all objects)
 };
-const MOUSE_PARALLAX = 0.35; // world units of sway at screen edge
+const MOUSE_PARALLAX = 0.45; // world units of sway at screen edge
 
 // Procedural object definitions. `depth` 0 = background (moves least with
 // scroll + mouse), 1 = foreground (moves most). `amp` scales scroll motion.
@@ -61,16 +61,16 @@ type ObjSpec = {
 };
 
 const OBJECTS: ObjSpec[] = [
-  // Foreground plates — large, partially offscreen, close to camera.
-  { kind: "plate", pos: [-5.0, -0.6, 3.2], scale: 1.5, rot: [0.15, 0.5, 0.1], depth: 1.0, amp: 1.0, dir: -1 },
-  { kind: "plate", pos: [5.1, 0.4, 3.0], scale: 1.55, rot: [-0.1, -0.5, -0.12], depth: 1.0, amp: 0.95, dir: 1 },
-  // Mid-depth dumbbells.
-  { kind: "dumbbell", pos: [-3.4, 2.3, -1.0], scale: 0.85, rot: [0.2, 0.3, 0.5], depth: 0.5, amp: 0.85, dir: 1 },
-  { kind: "dumbbell", pos: [3.7, -0.5, -0.6], scale: 0.9, rot: [-0.15, -0.4, -0.35], depth: 0.5, amp: 0.85, dir: -1 },
+  // Foreground plates — larger, clearly visible on left and right edges.
+  { kind: "plate", pos: [-4.6, -0.5, 3.6], scale: 1.85, rot: [0.15, 0.5, 0.1], depth: 1.0, amp: 1.0, dir: -1 },
+  { kind: "plate", pos: [4.8, 0.5, 3.4], scale: 1.9, rot: [-0.1, -0.5, -0.12], depth: 1.0, amp: 0.95, dir: 1 },
+  // Mid-depth dumbbells — slightly larger, more readable.
+  { kind: "dumbbell", pos: [-3.2, 2.0, -0.6], scale: 1.05, rot: [0.2, 0.3, 0.5], depth: 0.55, amp: 0.9, dir: 1 },
+  { kind: "dumbbell", pos: [3.5, -0.4, -0.4], scale: 1.1, rot: [-0.15, -0.4, -0.35], depth: 0.55, amp: 0.9, dir: -1 },
   // Kettlebell — lower-right, heavy inertia.
-  { kind: "kettlebell", pos: [2.7, -2.7, 1.0], scale: 0.95, rot: [0.0, 0.2, 0.05], depth: 0.7, amp: 0.7, dir: 1, heavy: true },
+  { kind: "kettlebell", pos: [2.5, -2.5, 1.2], scale: 1.15, rot: [0.0, 0.2, 0.05], depth: 0.7, amp: 0.8, dir: 1, heavy: true },
   // Barbell segment — lower-left, mid-depth.
-  { kind: "barbell", pos: [-2.4, -2.5, 0.4], scale: 0.85, rot: [0.1, 0.25, 0.18], depth: 0.6, amp: 0.7, dir: -1 },
+  { kind: "barbell", pos: [-2.2, -2.3, 0.6], scale: 1.05, rot: [0.1, 0.25, 0.18], depth: 0.6, amp: 0.8, dir: -1 },
 ];
 
 /**
@@ -266,20 +266,24 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string; sty
       renderer.domElement.style.width = "100%";
       renderer.domElement.style.height = "100%";
 
-      // ── Lighting: low ambient + silver key + violet rim ──────────────────
-      scene.add(new THREE.AmbientLight(0x3a3a44, 0.9));
-      const key = new THREE.DirectionalLight(0xdfe2ff, 2.1);
+      // ── Lighting: stronger for graphite bg, objects must read clearly ────
+      scene.add(new THREE.AmbientLight(0x3a3a46, 1.4));
+      const key = new THREE.DirectionalLight(0xe8eaff, 3.2);
       key.position.set(4, 5, 6);
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0x9aa0c0, 0.7);
+      const fill = new THREE.DirectionalLight(0xaab0cc, 1.1);
       fill.position.set(-6, -2, 4);
       scene.add(fill);
-      const rim = new THREE.PointLight(0x7a4cff, 16, 40, 2);
+      const rim = new THREE.PointLight(0x7a4cff, 22, 45, 2);
       rim.position.set(-3, 1, -5);
       scene.add(rim);
-      const rim2 = new THREE.PointLight(0x7a4cff, 10, 40, 2);
+      const rim2 = new THREE.PointLight(0x7a4cff, 14, 45, 2);
       rim2.position.set(4, -2, -4);
       scene.add(rim2);
+      // Extra back-fill so graphite objects don't go fully black on dark bg
+      const backFill = new THREE.DirectionalLight(0x5a4080, 0.9);
+      backFill.position.set(0, -3, -8);
+      scene.add(backFill);
 
       // ── Build objects ────────────────────────────────────────────────────
       const root = new THREE.Group();
@@ -316,8 +320,8 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string; sty
       // as around the torso, never across the face.
       const ringGroup = new THREE.Group();
       ringGroup.position.set(0, -0.4, 0);
-      const ring1 = buildRing(2.9);
-      const ring2 = buildRing(3.5);
+      const ring1 = buildRing(3.2);
+      const ring2 = buildRing(3.9);
       ring1.rotation.set(1.15, 0.0, 0);
       ring2.rotation.set(1.35, 0.4, 0);
       ringGroup.add(ring1, ring2);
@@ -441,8 +445,8 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string; sty
         // Rings — fade in during activation, rotate more at peak.
         const ringOpacity = smoothstep(0.12, 0.32, p) * (1 - 0.3 * openOut);
         const ringBoost = peak * 0.25 + pulseRef.current * 0.5;
-        ringMat1.opacity = Math.min(0.85, ringOpacity * 0.7 + ringBoost);
-        ringMat2.opacity = Math.min(0.7, ringOpacity * 0.55 + ringBoost * 0.8);
+        ringMat1.opacity = Math.min(1.0, ringOpacity * 0.88 + ringBoost);
+        ringMat2.opacity = Math.min(0.85, ringOpacity * 0.72 + ringBoost * 0.85);
         ringGroup.rotation.z = drive * INTENSITY.ringSpin;
         ring1.rotation.z = drive * 0.9;
         ring2.rotation.z = -drive * 1.1;
@@ -450,7 +454,7 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string; sty
         ringGroup.position.x = mouse.current.sx * 0.12;
 
         // Particles — barely there, a touch stronger at peak.
-        pMat.opacity = 0.12 + peak * 0.16 + pulseRef.current * 0.1;
+        pMat.opacity = 0.18 + peak * 0.22 + pulseRef.current * 0.12;
         particles.rotation.y = drive * 0.15 + mouse.current.sx * 0.05;
         particles.rotation.z = t * 0.005;
 

@@ -5,17 +5,9 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import HeroThreeOverlay, { type HeroOverlayHandle } from "./HeroThreeOverlay";
 
-// Real SmileFit cinematic hero: central athlete, floating weights, black void,
-// holographic rings, premium violet energy. File: public/smilefit-hero-video (1).mp4
 const HERO_VIDEO_SRC = "/smilefit-hero-video%20(1).mp4";
 
-// Stronger, clearly-staged scroll → video time mapping so the chamber visibly
-// unlocks as you scroll:
-//   0.00–0.15 → 0.00–0.04   frozen tension
-//   0.15–0.35 → 0.04–0.28   activation begins
-//   0.35–0.65 → 0.28–0.72   weights / rings / energy clearly move
-//   0.65–0.90 → 0.72–0.95   peak motion
-//   0.90–1.00 → 0.95–1.00   open-up
+// Video scroll map — kept for future use, currently hidden.
 function scrollToVideoFraction(p: number): number {
   const ramp = (v: number, lo: number, hi: number) =>
     Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
@@ -32,7 +24,6 @@ export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
   const cta = useRef<HTMLAnchorElement | null>(null);
   const overlay = useRef<HeroOverlayHandle | null>(null);
-
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -40,7 +31,7 @@ export default function CinematicHero() {
     const cleanups: Array<() => void> = [];
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // ---- RAF-based video scrub state ----
+    // RAF video scrub (video stays hidden; logic kept for potential future reveal)
     let targetVideoFrac = 0;
     let currentVideoFrac = 0;
     let rafId = 0;
@@ -49,18 +40,13 @@ export default function CinematicHero() {
     const video = videoRef.current;
     if (video) {
       video.pause();
-      const onMeta = () => {
-        videoDuration = video.duration || 0;
-        if (reduce) video.currentTime = videoDuration * 0.45;
-      };
+      const onMeta = () => { videoDuration = video.duration || 0; };
       if (video.readyState >= 1) videoDuration = video.duration || 0;
       else {
         video.addEventListener("loadedmetadata", onMeta);
         cleanups.push(() => video.removeEventListener("loadedmetadata", onMeta));
       }
-
       const tick = () => {
-        // Snappier lerp (0.18) so scroll motion is clearly visible.
         currentVideoFrac += (targetVideoFrac - currentVideoFrac) * 0.18;
         if (videoDuration > 0) {
           const t = currentVideoFrac * videoDuration;
@@ -82,55 +68,49 @@ export default function CinematicHero() {
         if (reduce) {
           gsap.set("[data-letterbox]", { clipPath: "inset(0% 0%)" });
           gsap.set(
-            "[data-nav], [data-brand], [data-eyebrow], [data-line], [data-statement], [data-support], [data-cta], [data-tabs], [data-scrollcue]",
+            "[data-nav], [data-brand], [data-eyebrow], [data-headline], [data-line], [data-statement], [data-cta], [data-tabs], [data-scrollcue]",
             { opacity: 1, y: 0, clipPath: "inset(0% 0%)" }
           );
           return;
         }
 
-        // -------- Scene 0: quiet editorial load inside letterbox --------
-        // ── TEXT REVEAL TIMING lives in this `intro` timeline ──
         gsap.set("[data-letterbox]", { clipPath: "inset(6% 8% round 0px)" });
         gsap.set("[data-line]", { clipPath: "inset(0% 0% 100% 0%)" });
 
-        const intro = gsap.timeline({
-          defaults: { ease: "power3.out" },
-          delay: 0.15,
-        });
+        // ---- Intro reveal sequence ----
+        const intro = gsap.timeline({ defaults: { ease: "power3.out" }, delay: 0.1 });
         intro
-          // Letterbox opens as part of the reveal so the hero loads clean &
-          // complete (nothing clipped); scroll then drives the activation.
-          .to("[data-letterbox]", { clipPath: "inset(0% 0% round 0px)", duration: 1.3, ease: "power3.inOut" }, 0.05)
-          .from("[data-nav]", { y: -14, opacity: 0, duration: 0.9, stagger: 0.06 }, 0)
-          // Step 1: SMILEFIT brand mark fades in.
-          .from("[data-brand]", { y: 8, opacity: 0, duration: 0.9 }, 0.2)
-          // Step 2: Eyebrow — editorial line appears.
-          .from("[data-eyebrow]", { y: 8, opacity: 0, duration: 0.8 }, 0.52)
-          // Step 3: Main serif headline — cinematic line-by-line masked reveal.
+          .to("[data-letterbox]", { clipPath: "inset(0% 0% round 0px)", duration: 1.4, ease: "power3.inOut" }, 0.05)
+          // 1. Nav + top-left brand
+          .from("[data-nav]", { y: -12, opacity: 0, duration: 0.9, stagger: 0.07 }, 0)
+          // 2. Eyebrow
+          .from("[data-eyebrow]", { y: 10, opacity: 0, duration: 0.9 }, 0.45)
+          // 3. SmileFit main title — soft fade + slight rise
+          .from("[data-headline]", { y: 20, opacity: 0, filter: "blur(10px)", duration: 1.1, ease: "expo.out" }, 0.75)
+          .set("[data-headline]", { clearProps: "filter" })
+          // 4. Editorial lines — masked line-by-line reveal
           .to(
             "[data-line]",
-            { clipPath: "inset(0% 0% 0% 0%)", duration: 1.3, ease: "expo.out", stagger: 0.18 },
-            0.85
+            { clipPath: "inset(0% 0% 0% 0%)", duration: 1.2, ease: "expo.out", stagger: 0.17 },
+            1.1
           )
           .from(
             "[data-line]",
-            { yPercent: 120, filter: "blur(14px)", duration: 1.3, ease: "expo.out", stagger: 0.18 },
-            0.85
+            { yPercent: 110, filter: "blur(10px)", duration: 1.2, ease: "expo.out", stagger: 0.17 },
+            1.1
           )
           .set("[data-line]", { clearProps: "filter" })
-          // Step 4: Strong statement — bold impact reveal.
-          .from("[data-statement]", { y: 18, opacity: 0, filter: "blur(8px)", duration: 0.85, ease: "expo.out" }, 1.55)
+          // 5. Lower-left statement — upward with blur-to-sharp
+          .from("[data-statement]", { y: 16, opacity: 0, filter: "blur(6px)", duration: 0.9 }, 1.7)
           .set("[data-statement]", { clearProps: "filter" })
-          // Supporting line follows gently.
-          .from("[data-support]", { y: 10, opacity: 0, duration: 0.7 }, 1.78)
-          // CTAs + tabs.
-          .from("[data-cta] > *", { y: 14, opacity: 0, duration: 0.8, stagger: 0.1 }, 1.9)
-          .from("[data-tab]", { y: 10, opacity: 0, duration: 0.7, stagger: 0.06 }, 1.95)
-          .from("[data-scrollcue]", { opacity: 0, duration: 0.7 }, 2.05)
-          // Floor glow breathes in to a quiet resting level.
-          .fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.28, duration: 1.2 }, 0.6);
+          // 6. CTAs + bottom tabs
+          .from("[data-cta] > *", { y: 12, opacity: 0, duration: 0.8, stagger: 0.1 }, 1.85)
+          .from("[data-tab]", { y: 8, opacity: 0, duration: 0.6, stagger: 0.055 }, 1.9)
+          .from("[data-scrollcue]", { opacity: 0, duration: 0.7 }, 2.1)
+          // Floor glow breathes in
+          .fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.3, duration: 1.4 }, 0.5);
 
-        // -------- Scene 1: scroll-scrubbed activation + handoff --------
+        // ---- Scroll-driven activation ----
         const morph = gsap.timeline({
           defaults: { ease: "none" },
           scrollTrigger: {
@@ -143,15 +123,13 @@ export default function CinematicHero() {
             onUpdate: (self) => {
               const p = self.progress;
               targetVideoFrac = scrollToVideoFraction(p);
-              // Same scroll progress drives the Three.js overlay objects.
               overlay.current?.setProgress(p);
-
-              // Scan wave sweeps once across the activation window 0.15–0.35.
+              // Scan sweep during 0.15–0.35
               const sw = (p - 0.15) / 0.2;
               if (sw >= 0 && sw <= 1) {
                 gsap.set("[data-scanwave]", {
                   yPercent: sw * 620 - 110,
-                  opacity: Math.sin(sw * Math.PI) * 0.7,
+                  opacity: Math.sin(sw * Math.PI) * 0.65,
                 });
               } else {
                 gsap.set("[data-scanwave]", { opacity: 0 });
@@ -161,31 +139,31 @@ export default function CinematicHero() {
         });
 
         morph
-          // (Letterbox already opened during the intro reveal.)
-          // Footage pushes in subtly through the unlock.
-          .to("[data-bg]", { scale: 1.12 }, 0)
-          // Floor glow rises from resting → activation → peak.
-          .to("[data-floorglow]", { opacity: 0.55 }, 0.15)
-          .to("[data-floorglow]", { opacity: 0.85 }, 0.5)
-          // Particles drift faster as the chamber unlocks.
-          .to("[data-particles]", { opacity: 0.85 }, 0.3)
-          // Editorial copy holds during frozen tension, then clears so the
-          // moving footage dominates the peak.
-          .to("[data-brand]", { opacity: 0, y: -8 }, 0.26)
-          .to("[data-eyebrow]", { opacity: 0, y: -8 }, 0.27)
-          .to("[data-headline]", { opacity: 0, y: -26, scale: 1.04 }, 0.30)
-          .to("[data-statement]", { opacity: 0, y: 12 }, 0.32)
-          .to("[data-support]", { opacity: 0, y: 8 }, 0.30)
-          .to("[data-cta]", { opacity: 0, y: -8 }, 0.35)
-          .to("[data-quote]", { opacity: 0 }, 0.30)
-          .to("[data-tabs]", { opacity: 0, y: 8 }, 0.28)
-          .to("[data-scrollcue]", { opacity: 0 }, 0.12)
-          // Vignette deepens, floor glow eases off, handoff to next section.
-          .to("[data-vignette]", { opacity: 0.85 }, 0.7)
-          .to("[data-floorglow]", { opacity: 0, duration: 0.18 }, 0.85)
-          .to("[data-handoff]", { opacity: 1 }, 0.86);
+          // Subtle scale push
+          .to("[data-bg]", { scale: 1.08 }, 0)
+          // Floor glow rises
+          .to("[data-floorglow]", { opacity: 0.52 }, 0.15)
+          .to("[data-floorglow]", { opacity: 0.78 }, 0.55)
+          // Particles lift
+          .to("[data-particles]", { opacity: 0.75 }, 0.3)
+          // Typography clears later so it coexists longer with the motion
+          .to("[data-eyebrow]", { opacity: 0, y: -6 }, 0.35)
+          .to("[data-headline]", { opacity: 0, y: -18, scale: 1.03 }, 0.38)
+          .to("[data-lines]", { opacity: 0, y: -14 }, 0.40)
+          .to("[data-statement]", { opacity: 0, y: 10 }, 0.40)
+          .to("[data-cta]", { opacity: 0, y: -8 }, 0.42)
+          .to("[data-brand]", { opacity: 0, y: -8 }, 0.38)
+          .to("[data-tabs]", { opacity: 0, y: 6 }, 0.36)
+          .to("[data-scrollcue]", { opacity: 0 }, 0.14)
+          // Vignette deepens at peak
+          .to("[data-vignette]", { opacity: 0.75 }, 0.72)
+          // Floor glow holds longer before fading
+          .to("[data-floorglow]", { opacity: 0.3 }, 0.88)
+          .to("[data-floorglow]", { opacity: 0 }, 0.96)
+          // Handoff veil — starts later, doesn't go fully black too early
+          .to("[data-handoff]", { opacity: 1 }, 0.94);
 
-        // -------- Cursor spotlight (quiet) --------
+        // Cursor spotlight
         if (hover && root.current) {
           const rootEl = root.current;
           const qX = gsap.quickTo("[data-cursorlight]", "x", { duration: 0.5, ease: "power3.out" });
@@ -206,15 +184,14 @@ export default function CinematicHero() {
           });
         }
 
-        // -------- Primary CTA hover: subtle violet pulse + floor glow lift --
+        // CTA hover pulse
         if (hover && cta.current) {
           const btn = cta.current;
           const glow = root.current?.querySelector<HTMLElement>("[data-ctaglow]") ?? null;
           const onEnter = () => {
-            // Rings brighten + weights vibrate slightly via the overlay.
             overlay.current?.pulse();
             if (glow) gsap.to(glow, { opacity: 1, duration: 0.5, ease: "power2.out" });
-            gsap.to("[data-floorglow]", { opacity: "+=0.12", duration: 0.6, overwrite: "auto" });
+            gsap.to("[data-floorglow]", { opacity: "+=0.1", duration: 0.6, overwrite: "auto" });
             gsap.to(btn, {
               keyframes: [
                 { boxShadow: "0 0 0px rgba(122,76,255,0.0)" },
@@ -240,16 +217,12 @@ export default function CinematicHero() {
 
       // ===================== MOBILE =====================
       mm.add("(max-width: 767px)", () => {
-        if (video) {
-          video.loop = true;
-          video.play().catch(() => {/* autoplay blocked — poster is fine */});
-        }
         if (reduce) return;
         gsap.from(
-          "[data-nav], [data-brand], [data-eyebrow], [data-line], [data-statement], [data-support], [data-cta] > *, [data-tab]",
-          { opacity: 0, y: 18, duration: 0.8, ease: "power3.out", stagger: 0.06 }
+          "[data-nav], [data-brand], [data-eyebrow], [data-headline], [data-line], [data-statement], [data-cta] > *, [data-tab]",
+          { opacity: 0, y: 16, duration: 0.8, ease: "power3.out", stagger: 0.05 }
         );
-        gsap.fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.3, duration: 1 });
+        gsap.fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.28, duration: 1 });
       });
     }, root);
 
@@ -262,78 +235,90 @@ export default function CinematicHero() {
   return (
     <section
       ref={root}
-      className="relative h-screen w-full overflow-hidden bg-[#050505] text-[#ece9f2]"
+      className="relative h-screen w-full overflow-hidden bg-[#0d0d0f] text-[#ece9f2]"
     >
-      {/* ============ L0 — BACKGROUND VIDEO ============ */}
+      {/* ============ L0 — GRAPHITE BACKGROUND ============
+          Video is hidden; Three.js is now the main visual.
+          Rich dark graphite base so the hero never reads as plain black. */}
       <div data-bg className="absolute inset-0 z-0" style={{ willChange: "transform" }}>
+        {/* Graphite base gradient — lifts midtones, keeps premium dark feel */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 130% 110% at 50% 65%, #1c1c24 0%, #111116 38%, #080809 100%)",
+          }}
+        />
+        {/* Restrained violet atmospheric centre glow */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 55% 40% at 50% 54%, rgba(122,76,255,0.07) 0%, transparent 70%)",
+          }}
+        />
+        {/* Silver horizontal accent — subtle depth plane */}
+        <div
+          className="pointer-events-none absolute inset-x-0"
+          style={{
+            top: "58%",
+            height: "1px",
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(180,180,200,0.06) 30%, rgba(180,180,200,0.12) 50%, rgba(180,180,200,0.06) 70%, transparent 100%)",
+          }}
+        />
+        {/* Video element — hidden; athlete not visible */}
         <video
           ref={videoRef}
           src={HERO_VIDEO_SRC}
           poster="/hero/poster.jpg"
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ filter: "brightness(0.38) saturate(0.7) contrast(1.1)" }}
+          className="absolute inset-0 h-full w-full object-cover opacity-0"
           muted
           playsInline
-          preload="auto"
-        />
-        {/* Heavy atmospheric overlay — athlete recedes, becomes pure ambience */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(5,5,5,0.72) 0%, rgba(5,5,5,0.38) 40%, rgba(5,5,5,0.58) 100%)",
-          }}
-        />
-        {/* Subtle violet top-left atmospheric wash */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(120% 80% at 15% 8%, rgba(122,76,255,0.08), transparent 52%)",
-          }}
+          preload="none"
+          aria-hidden
         />
       </div>
 
-      {/* ===== L2 — THREE.JS TRANSPARENT OVERLAY (weights / rings / particles) */}
+      {/* ===== L1 — THREE.JS OVERLAY: main motion system ===== */}
       <HeroThreeOverlay
         ref={overlay}
         className="pointer-events-none absolute inset-0 z-[1]"
-        style={{ opacity: 0.65 }}
       />
 
-      {/* Atmospheric particles — subtle dust drifting over the video */}
+      {/* Atmospheric particles */}
       <div
         data-particles
-        className="hero-particles pointer-events-none absolute inset-0 z-[2] opacity-[0.55] mix-blend-screen"
+        className="hero-particles pointer-events-none absolute inset-0 z-[2] opacity-[0.4] mix-blend-screen"
         style={{
           backgroundImage:
-            "radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,0.5), transparent 60%), radial-gradient(1.3px 1.3px at 70% 60%, rgba(150,130,255,0.45), transparent 60%)",
-          backgroundSize: "220px 220px, 300px 300px",
-          animation: "heroParticleDrift 24s linear infinite",
+            "radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,0.45), transparent 60%), radial-gradient(1.3px 1.3px at 72% 62%, rgba(140,120,255,0.4), transparent 60%)",
+          backgroundSize: "220px 220px, 310px 310px",
+          animation: "heroParticleDrift 26s linear infinite",
           willChange: "background-position",
         }}
       />
 
-      {/* Scan wave — thin bright sweep during activation (scroll 0.15–0.35) */}
+      {/* Scan wave */}
       <div
         data-scanwave
         className="pointer-events-none absolute inset-x-0 top-0 z-[3] opacity-0 mix-blend-screen"
         style={{
           height: "14%",
           background:
-            "linear-gradient(180deg, transparent 0%, rgba(170,158,255,0.12) 44%, rgba(214,208,255,0.55) 50%, rgba(170,158,255,0.12) 56%, transparent 100%)",
+            "linear-gradient(180deg, transparent 0%, rgba(160,148,255,0.09) 44%, rgba(210,200,255,0.45) 50%, rgba(160,148,255,0.09) 56%, transparent 100%)",
           willChange: "transform, opacity",
         }}
       />
 
-      {/* Floor / ring glow — restrained violet, rises with scroll */}
+      {/* Floor glow */}
       <div
         data-floorglow
         className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] opacity-0"
         style={{
-          height: "34%",
+          height: "38%",
           background:
-            "radial-gradient(ellipse 70% 38% at 50% 100%, rgba(122,76,255,0.42) 0%, rgba(122,76,255,0.10) 45%, transparent 72%)",
+            "radial-gradient(ellipse 72% 42% at 50% 100%, rgba(122,76,255,0.38) 0%, rgba(122,76,255,0.09) 48%, transparent 74%)",
           willChange: "opacity",
         }}
       />
@@ -341,18 +326,17 @@ export default function CinematicHero() {
       {/* Cursor spotlight */}
       <div
         data-cursorlight
-        className="pointer-events-none absolute left-0 top-0 z-[3] hidden h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 mix-blend-screen md:block"
+        className="pointer-events-none absolute left-0 top-0 z-[3] hidden h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 mix-blend-screen md:block"
         style={{
           background:
-            "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(122,76,255,0.08) 34%, transparent 62%)",
+            "radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(122,76,255,0.06) 36%, transparent 64%)",
           willChange: "transform, opacity",
         }}
       />
 
       {/* Grain */}
       <div
-        data-grain
-        className="pointer-events-none absolute inset-0 z-[4] opacity-[0.07] mix-blend-overlay"
+        className="pointer-events-none absolute inset-0 z-[4] opacity-[0.055] mix-blend-overlay"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")",
@@ -360,165 +344,146 @@ export default function CinematicHero() {
         }}
       />
 
-      {/* ===== L4 — READABILITY GRADIENT (keeps centered copy legible) ===== */}
+      {/* Readability gradient — light centre veil so text is crisp over objects */}
       <div
-        data-readability
         className="pointer-events-none absolute inset-0 z-[6]"
         style={{
           background:
-            "radial-gradient(80% 60% at 50% 52%, rgba(5,5,5,0.65) 0%, rgba(5,5,5,0.25) 50%, transparent 80%)",
+            "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(10,10,14,0.55) 0%, rgba(10,10,14,0.18) 50%, transparent 78%)",
         }}
       />
 
-      {/* Vignette */}
+      {/* Vignette — softer than before */}
       <div
         data-vignette
-        className="pointer-events-none absolute inset-0 z-[7] opacity-60"
+        className="pointer-events-none absolute inset-0 z-[7] opacity-50"
         style={{
           background:
-            "radial-gradient(130% 95% at 50% 45%, transparent 34%, rgba(0,0,0,0.6) 76%, rgba(0,0,0,0.94) 100%)",
+            "radial-gradient(140% 100% at 50% 46%, transparent 36%, rgba(0,0,0,0.52) 74%, rgba(0,0,0,0.88) 100%)",
         }}
       />
 
-      {/* ============ LETTERBOX WINDOW ============ */}
+      {/* ============ LETTERBOX ============ */}
       <div data-letterbox className="absolute inset-0 z-[8]" style={{ willChange: "clip-path" }}>
-        {/* ---- Top bar ---- */}
-        <header className="absolute inset-x-0 top-0 z-[40] flex items-center justify-between px-6 py-6 md:px-10 md:py-8">
+
+        {/* ---- Top bar: brand left, nav right ---- */}
+        <header className="absolute inset-x-0 top-0 z-[40] flex items-center justify-between px-8 py-7 md:px-12 md:py-8">
+          {/* Top-left SMILEFIT mark */}
           <a
             href="#"
-            data-nav
-            className="text-[16px] tracking-[0.18em] md:text-[17px]"
-            style={{ fontWeight: 600 }}
+            data-brand
+            className="text-[#ece9f2]"
+            style={{
+              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontSize: "clamp(11px, 1.1vw, 13px)",
+              letterSpacing: "0.34em",
+              fontWeight: 600,
+            }}
           >
             SMILEFIT
           </a>
+
+          {/* Top-right nav */}
           <nav
             data-nav
-            className="hidden items-center gap-8 text-[11px] uppercase tracking-[0.24em] text-[#ece9f2]/70 md:flex"
+            className="hidden items-center gap-9 text-[11px] uppercase tracking-[0.22em] text-[#ece9f2]/60 md:flex"
             style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
-            <a href="#training" className="transition-opacity hover:opacity-100 hover:text-[#ece9f2]">Training</a>
-            <a href="#raume" className="transition-opacity hover:text-[#ece9f2]">Räume</a>
-            <a href="#mitgliedschaft" className="transition-opacity hover:text-[#ece9f2]">Mitgliedschaft</a>
-            <a href="#kontakt" className="transition-opacity hover:text-[#ece9f2]">Kontakt</a>
+            <a href="#training" className="transition-colors hover:text-[#ece9f2]">Training</a>
+            <a href="#raume" className="transition-colors hover:text-[#ece9f2]">Räume</a>
+            <a href="#mitgliedschaft" className="transition-colors hover:text-[#ece9f2]">Mitgliedschaft</a>
+            <a href="#kontakt" className="transition-colors hover:text-[#ece9f2]">Kontakt</a>
           </nav>
+
           <a
             href="#kontakt"
             data-nav
-            className="text-[11px] uppercase tracking-[0.22em] text-[#ece9f2]/80 md:hidden"
+            className="text-[11px] uppercase tracking-[0.22em] text-[#ece9f2]/70 md:hidden"
             style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
             Menu
           </a>
         </header>
 
-        {/* ---- Centered editorial block ---- */}
+        {/* ---- Center editorial block ---- */}
         <div className="absolute inset-0 z-[10] flex flex-col items-center justify-center px-6 text-center">
-          {/* 1. Top brand — small, spaced */}
-          <div data-brand className="mb-5 flex items-center gap-4">
-            <span className="hidden h-px w-8 bg-[#7a4cff]/50 sm:block" />
-            <span
-              className="text-[#ece9f2]/90"
-              style={{
-                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                fontSize: "clamp(10px, 1.1vw, 13px)",
-                letterSpacing: "0.38em",
-                fontWeight: 600,
-              }}
-            >
-              SMILEFIT
-            </span>
-            <span className="hidden h-px w-8 bg-[#7a4cff]/50 sm:block" />
-          </div>
 
-          {/* 2. Eyebrow — editorial, spaced */}
+          {/* Eyebrow */}
           <p
             data-eyebrow
-            className="mb-10 text-[#ece9f2]/55"
+            className="mb-7 text-[#ece9f2]/50"
             style={{
               fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-              fontSize: "clamp(9px, 0.95vw, 12px)",
-              letterSpacing: "0.30em",
+              fontSize: "clamp(9px, 0.85vw, 11px)",
+              letterSpacing: "0.38em",
               fontWeight: 500,
             }}
           >
             PREMIUM FITNESS · STUTTGART
           </p>
 
-          {/* 3. Main serif headline — masked line-by-line reveal */}
+          {/* Main brand title — elegant serif, THE hero centrepiece */}
           <h1
             data-headline
-            className="font-serif-editorial uppercase"
+            className="font-serif-editorial text-[#ece9f2]"
             style={{
-              fontSize: "clamp(36px, 6.5vw, 108px)",
-              letterSpacing: "0.04em",
-              lineHeight: 1.04,
+              fontSize: "clamp(52px, 8.5vw, 138px)",
+              letterSpacing: "0.06em",
+              lineHeight: 1.0,
               fontWeight: 300,
               willChange: "transform, opacity",
             }}
           >
-            <span className="block overflow-hidden">
-              <span data-line className="block" style={{ willChange: "transform, filter" }}>
-                Bring back your prime,
-              </span>
-            </span>
-            <span className="block overflow-hidden">
-              <span data-line className="block" style={{ willChange: "transform, filter" }}>
-                one more time.
-              </span>
-            </span>
+            SmileFit
           </h1>
 
-          {/* 4. Strong statement — bold impact sans */}
-          <p
-            data-statement
-            className="mt-7 text-[#ece9f2]"
-            style={{
-              fontFamily: "Arial Black, 'Helvetica Neue', Impact, sans-serif",
-              fontSize: "clamp(18px, 2.2vw, 34px)",
-              letterSpacing: "0.12em",
-              fontWeight: 900,
-              textTransform: "uppercase",
-            }}
-          >
-            YOU&rsquo;RE NOT DONE YET.
-          </p>
+          {/* Divider */}
+          <div className="my-7 h-px w-12 bg-[#7a4cff]/40" />
 
-          {/* 5. Supporting line */}
-          <p
-            data-support
-            className="mt-4 text-[#ece9f2]/50"
-            style={{
-              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-              fontSize: "clamp(11px, 1.1vw, 15px)",
-              letterSpacing: "0.18em",
-              fontWeight: 400,
-            }}
-          >
-            Kraft. Energie. Fokus.
-          </p>
+          {/* Editorial supporting lines */}
+          <div data-lines>
+            <p
+              className="font-serif-editorial text-[#ece9f2]/75"
+              style={{
+                fontSize: "clamp(14px, 1.55vw, 24px)",
+                letterSpacing: "0.04em",
+                lineHeight: 1.55,
+                fontWeight: 300,
+              }}
+            >
+              <span className="block overflow-hidden">
+                <span data-line className="block italic" style={{ willChange: "transform, filter" }}>
+                  Bring back your prime.
+                </span>
+              </span>
+              <span className="block overflow-hidden">
+                <span data-line className="block italic" style={{ willChange: "transform, filter" }}>
+                  One more time.
+                </span>
+              </span>
+            </p>
+          </div>
 
           {/* CTAs */}
-          <div data-cta className="mt-12 flex flex-col items-center gap-4 sm:flex-row">
+          <div data-cta className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
             <a
               ref={cta}
               href="#kontakt"
-              className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#7a4cff]/70 px-7 py-3.5 text-[11px] uppercase tracking-[0.26em] text-[#ece9f2] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
+              className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#7a4cff]/60 px-7 py-3 text-[10px] uppercase tracking-[0.28em] text-[#ece9f2] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d0d0f]"
               style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600 }}
             >
-              {/* hover wash + glow */}
               <span
                 data-ctaglow
                 aria-hidden
                 className="pointer-events-none absolute inset-0 opacity-0"
-                style={{ background: "radial-gradient(120% 120% at 50% 120%, rgba(122,76,255,0.28), transparent 70%)" }}
+                style={{ background: "radial-gradient(120% 120% at 50% 120%, rgba(122,76,255,0.25), transparent 70%)" }}
               />
               <span className="relative">Probetraining reservieren</span>
               <span aria-hidden className="relative transition-transform duration-500 group-hover:translate-x-1">→</span>
             </a>
             <a
               href="#mitgliedschaft"
-              className="inline-flex items-center text-[11px] uppercase tracking-[0.26em] text-[#ece9f2]/65 underline-offset-[6px] transition-colors hover:text-[#ece9f2] hover:underline"
+              className="inline-flex items-center text-[10px] uppercase tracking-[0.28em] text-[#ece9f2]/55 underline-offset-[6px] transition-colors hover:text-[#ece9f2] hover:underline"
               style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600 }}
             >
               Mitglied werden
@@ -526,8 +491,28 @@ export default function CinematicHero() {
           </div>
         </div>
 
-        {/* ---- Bottom tabs ---- */}
-        <div className="absolute inset-x-0 bottom-0 z-[10] flex items-end justify-center gap-6 px-6 pb-8 md:px-10 md:pb-10">
+        {/* ---- Lower-left statement ---- */}
+        <div
+          data-statement
+          className="absolute bottom-0 left-0 z-[10] px-8 pb-10 md:px-12 md:pb-12"
+        >
+          <span className="mb-2 block h-px w-8 bg-[#7a4cff]/50" />
+          <p
+            className="text-[#ece9f2]"
+            style={{
+              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontSize: "clamp(11px, 1.15vw, 16px)",
+              letterSpacing: "0.16em",
+              fontWeight: 700,
+              textTransform: "uppercase",
+            }}
+          >
+            You&rsquo;re not done yet.
+          </p>
+        </div>
+
+        {/* ---- Bottom centre: tabs ---- */}
+        <div className="absolute inset-x-0 bottom-0 z-[10] flex justify-center pb-8 md:pb-10">
           <div
             data-tabs
             className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2"
@@ -537,12 +522,12 @@ export default function CinematicHero() {
               <span
                 key={tab}
                 data-tab
-                className={`text-[10px] uppercase tracking-[0.3em] ${
-                  i === 0 ? "text-[#ece9f2]" : "text-[#ece9f2]/40"
+                className={`text-[9px] uppercase tracking-[0.32em] ${
+                  i === 0 ? "text-[#ece9f2]" : "text-[#ece9f2]/38"
                 }`}
               >
                 {i === 0 && (
-                  <span className="mr-2 inline-block h-[6px] w-[6px] -translate-y-px rounded-full bg-[#7a4cff] align-middle" />
+                  <span className="mr-2 inline-block h-[5px] w-[5px] -translate-y-px rounded-full bg-[#7a4cff] align-middle" />
                 )}
                 {tab}
               </span>
@@ -550,26 +535,26 @@ export default function CinematicHero() {
           </div>
         </div>
 
-        {/* Empty placeholder to keep morph timeline data-quote ref valid */}
-        <div data-quote className="pointer-events-none absolute opacity-0" aria-hidden />
-
-        {/* Scroll cue — centered */}
+        {/* Scroll cue */}
         <div
           data-scrollcue
-          className="absolute bottom-8 left-1/2 z-[10] hidden -translate-x-1/2 flex-col items-center gap-2 text-[#ece9f2]/60 md:flex"
+          className="absolute bottom-8 left-1/2 z-[10] hidden -translate-x-1/2 flex-col items-center gap-2 text-[#ece9f2]/45 md:flex"
           style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
         >
-          <span className="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
-          <span className="relative block h-12 w-px overflow-hidden bg-[#ece9f2]/15">
+          <span className="text-[9px] uppercase tracking-[0.32em]">Scroll</span>
+          <span className="relative block h-10 w-px overflow-hidden bg-[#ece9f2]/12">
             <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#ece9f2]" />
           </span>
         </div>
+
+        {/* Placeholder keeps morph refs intact */}
+        <div data-quote className="pointer-events-none absolute opacity-0" aria-hidden />
       </div>
 
       {/* HANDOFF VEIL */}
       <div
         data-handoff
-        className="pointer-events-none absolute inset-0 z-[30] bg-[#050505] opacity-0"
+        className="pointer-events-none absolute inset-0 z-[30] bg-[#080809] opacity-0"
       />
     </section>
   );
