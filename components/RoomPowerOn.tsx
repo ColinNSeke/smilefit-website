@@ -23,6 +23,11 @@ const LIT_FILTER  = "brightness(1) saturate(1) contrast(1)";
 function RoomPlate({ lit }: { lit: boolean }) {
   return (
     <div className="absolute inset-0">
+      {/* Dark placeholder renders until /raume/02.jpg is provided. */}
+      <div
+        className="absolute inset-0 media-fallback"
+        aria-hidden
+      />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         data-base
@@ -30,6 +35,7 @@ function RoomPlate({ lit }: { lit: boolean }) {
         alt="SmileFit Trainingsraum — Maschinen, Neon und Hammer-Strength-Rack."
         className="absolute inset-0 h-full w-full object-cover"
         style={{ filter: lit ? LIT_FILTER : DIM_FILTER, willChange: "filter" }}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
       />
       {/* Global dim overlay lifts as the room powers on. */}
       <div
