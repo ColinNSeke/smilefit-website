@@ -28,7 +28,7 @@ const TILES: Tile[] = [
     area: "md:col-span-4",
   },
   {
-    src: "/image.png",
+    src: "/media/gym-06.jpg",
     label: "Kraft",
     index: "03",
     caption: "Hammer Strength",
