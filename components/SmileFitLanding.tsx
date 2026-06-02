@@ -4,12 +4,10 @@ import SmoothScroll from "./SmoothScroll";
 import MixBlendCursor from "./MixBlendCursor";
 import ScrollProgressRail from "./ScrollProgressRail";
 import CinematicHero from "./CinematicHero";
-import RoomPowerOn from "./RoomPowerOn";
-import TrainingGrid from "./TrainingGrid";
-import MarqueeBand from "./MarqueeBand";
-import EditorialStatement from "./EditorialStatement";
-import HorizontalGallery from "./HorizontalGallery";
-import FooterCTA from "./FooterCTA";
+import RaumeSection from "./RaumeSection";
+import ManifestoSection from "./ManifestoSection";
+import PricingSection from "./PricingSection";
+import FooterInfo from "./FooterInfo";
 
 export default function SmileFitLanding() {
   return (
@@ -17,14 +15,12 @@ export default function SmileFitLanding() {
       <MixBlendCursor />
       <ScrollProgressRail />
       <SmoothScroll />
-      <main className="relative w-full">
+      <main className="relative w-full bg-[#050308]">
         <CinematicHero />
-        <RoomPowerOn />
-        <TrainingGrid />
-        <MarqueeBand />
-        <EditorialStatement />
-        <HorizontalGallery />
-        <FooterCTA />
+        <RaumeSection />
+        <ManifestoSection />
+        <PricingSection />
+        <FooterInfo />
       </main>
     </>
   );
