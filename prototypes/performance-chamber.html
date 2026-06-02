@@ -126,7 +126,7 @@
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.22;
   stage.appendChild(renderer.domElement);
 
   // ---------- Scene & fog ----------
@@ -163,6 +163,14 @@
   const front = new THREE.DirectionalLight(0x9aa0b5, 0.35);
   front.position.set(0, 6, 14);
   scene.add(front);
+
+  // Very subtle front fill — a tight spot aimed at the athlete's torso so the
+  // musculature/edges read without lifting the void. Low intensity + narrow
+  // cone keeps it cinematic; it never spills onto the floor or background.
+  const fillFront = new THREE.SpotLight(0xbfc6e0, 14, 22, Math.PI / 9, 0.7, 1.6);
+  fillFront.position.set(0, 6.5, 11);
+  fillFront.target.position.set(0, 5.4, 0);
+  scene.add(fillFront, fillFront.target);
 
   // Violet underglow accent (pulses with phases)
   const violetGlow = new THREE.PointLight(0x6a4cff, 0.0, 30, 2.0);
