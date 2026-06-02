@@ -56,24 +56,17 @@ const ABERRATION_FILTER =
 /**
  * SmileFit — Multi-scene cinematic hero.
  *
- * Mechanics:
- *  Scene 0 — Impact load: the headline settles (1.06 → 1) with a one-frame
- *    screen shake + grain/vignette pulse; each character decode-scrambles into
- *    place left→right; a one-shot RGB chromatic-aberration split fires on the
- *    impact beat; the neon eyebrow rule draws in; nav/subhead/CTA stagger in.
- *  Scene 1 — Living type: the <h1> uses background-clip:text over a cream→
- *    violet gradient with slowly panning violet "embers", plus a flickering
- *    neon-violet outer glow (CSS). Cream type with purple fire-light inside.
- *  Scene 2 — Flood + handoff: a pinned, scrubbed timeline scales the headline
- *    up and fades it while the footage pushes in and floods the viewport,
- *    clears the UI, then settles to near-black so the (near-black) room
- *    section takes over with no empty frame.
+ * Scene 0 — Letterbox load: on first paint the UI sits inside a center
+ *   letterbox window (clip-path: inset on [data-letterbox]). The decode
+ *   scramble, purple-fire fill, impact aberration, and outer glow all play
+ *   inside this contained state. A scroll cue appears after ~600ms.
+ * Scene 1 — Living type: background-clip:text cream→violet fire fill with
+ *   slowly panning embers and flickering neon-violet outer glow (CSS).
+ * Scene 2 — Flood + handoff: pinned scrub retracts the letterbox bars,
+ *   scales up the headline, floods footage, clears UI, then settles near-black
+ *   so the room section takes over seamlessly.
  *
- * Desktop also gets a cursor spotlight and a magnetic CTA. The real <h1> with
- * its actual characters renders server-side (aria-label + SSR text), so the
- * headline is the LCP, never blocked by JS, and reads if JS fails.
- * prefers-reduced-motion: no scramble / aberration / flicker / ember — the
- * final cream-fire state with a calm static glow.
+ * prefers-reduced-motion: final state shown immediately, no animations.
  */
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
@@ -94,8 +87,7 @@ export default function CinematicHero() {
         const hover = window.matchMedia("(hover: hover)").matches;
 
         if (reduce) {
-          // Final states only — no scramble, no aberration, no shake/scrub.
-          // (CSS flicker/ember are disabled via prefers-reduced-motion too.)
+          gsap.set("[data-letterbox]", { clipPath: "inset(0% 0%)" });
           gsap.set("[data-headline]", { opacity: 1, scale: 1 });
           gsap.set("[data-eyebrow-rule]", { scaleX: 1 });
           gsap.set(
@@ -105,7 +97,12 @@ export default function CinematicHero() {
           return;
         }
 
-        // -------- Scene 0: impact load --------
+        // -------- Scene 0: impact load inside letterbox --------
+        // Start contained — bars on all four sides.
+        gsap.set("[data-letterbox]", {
+          clipPath: "inset(12% 18% round 0px)",
+        });
+
         const intro = gsap.timeline({
           defaults: { ease: "power4.out" },
           delay: 0.12,
@@ -139,9 +136,7 @@ export default function CinematicHero() {
           },
           0.06
         );
-        // Impact chromatic-aberration: one-shot RGB split on the headline that
-        // settles clean (~120ms). Inline filter overrides the CSS glow flicker
-        // during the beat; clearProps hands control back to the CSS animation.
+        // Impact chromatic-aberration.
         intro.set("[data-fire]", { filter: ABERRATION_FILTER }, 0.06);
         intro.set("[data-fire]", { clearProps: "filter" }, 0.18);
         // Grain + vignette pulse.
@@ -184,12 +179,13 @@ export default function CinematicHero() {
         );
 
         // -------- Scene 2: flood + handoff (pinned scrub) --------
+        // Bars retract → footage floods → UI clears → near-black handoff.
         const morph = gsap.timeline({
           defaults: { ease: "none" },
           scrollTrigger: {
             trigger: root.current,
             start: "top top",
-            end: "+=120%",
+            end: "+=140%",
             pin: true,
             scrub: 0.8,
             anticipatePin: 1,
@@ -197,20 +193,26 @@ export default function CinematicHero() {
         });
 
         morph
-          // Footage pushes in.
+          // Bars retract — letterbox opens to full viewport.
+          .to(
+            "[data-letterbox]",
+            { clipPath: "inset(0% 0% round 0px)", duration: 0.55, ease: "power2.inOut" },
+            0
+          )
+          // Footage pushes in as bars open.
           .to("[data-bg]", { scale: 1.16 }, 0)
-          // Headline scales up and fades → the footage floods the viewport.
-          .to("[data-headline]", { scale: 1.45, opacity: 0, y: -40 }, 0)
+          // Headline scales up and fades → footage floods the viewport.
+          .to("[data-headline]", { scale: 1.45, opacity: 0, y: -40 }, 0.1)
           // UI clears out.
-          .to("[data-eyebrow]", { opacity: 0, y: -10 }, 0.2)
-          .to("[data-subhead]", { opacity: 0, y: -10 }, 0.25)
-          .to("[data-cta]", { opacity: 0, y: -10 }, 0.2)
-          .to("[data-scrollcue]", { opacity: 0 }, 0.1)
-          .to("[data-vignette]", { opacity: 0.85 }, 0.4)
+          .to("[data-eyebrow]", { opacity: 0, y: -10 }, 0.25)
+          .to("[data-subhead]", { opacity: 0, y: -10 }, 0.3)
+          .to("[data-cta]", { opacity: 0, y: -10 }, 0.25)
+          .to("[data-scrollcue]", { opacity: 0 }, 0.12)
+          .to("[data-vignette]", { opacity: 0.85 }, 0.45)
           // Settle to near-black so the (near-black) room hands off seamlessly.
           .to("[data-handoff]", { opacity: 1 }, 0.82);
 
-        // -------- Cursor spotlight (lights footage through the type) --------
+        // -------- Cursor spotlight --------
         if (hover && root.current) {
           const rootEl = root.current;
           const qX = gsap.quickTo("[data-cursorlight]", "x", {
@@ -289,7 +291,6 @@ export default function CinematicHero() {
             stagger: 0.08,
           }
         );
-        // Keep the fire fill; shorten the decode scramble, no aberration.
         const headlineEl = root.current?.querySelector<HTMLElement>(
           "[data-headline]"
         );
@@ -315,7 +316,7 @@ export default function CinematicHero() {
       ref={root}
       className="relative h-screen w-full overflow-hidden bg-[#050505] text-[#f2efe6]"
     >
-      {/* ============ L0 — BACKGROUND VIDEO ============ */}
+      {/* ============ L0 — BACKGROUND VIDEO (always full viewport) ============ */}
       <div data-bg className="absolute inset-0 z-0" style={{ willChange: "transform" }}>
         <video
           src="/media/hero-a.mp4"
@@ -328,7 +329,7 @@ export default function CinematicHero() {
           playsInline
           preload="metadata"
         />
-        {/* Violet wash (hex-light reference) */}
+        {/* Violet wash */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -338,8 +339,7 @@ export default function CinematicHero() {
         />
       </div>
 
-      {/* Cursor spotlight — desktop only, sits under the mask so it lights
-          the footage seen through the letterforms. */}
+      {/* Cursor spotlight */}
       <div
         data-cursorlight
         className="pointer-events-none absolute left-0 top-0 z-[3] hidden h-[640px] w-[640px] -translate-x-1/2 -translate-y-1/2 mix-blend-screen md:block"
@@ -361,7 +361,7 @@ export default function CinematicHero() {
         }}
       />
 
-      {/* Vignette (over the footage, deepens on scrub) */}
+      {/* Vignette */}
       <div
         data-vignette
         className="pointer-events-none absolute inset-0 z-[7] opacity-50"
@@ -371,161 +371,154 @@ export default function CinematicHero() {
         }}
       />
 
-      {/* ============ NAV ============ */}
-      <header className="absolute inset-x-0 top-0 z-[40] flex items-center justify-between px-6 py-6 md:px-10 md:py-8">
-        <a
-          href="#"
-          data-nav
-          className="font-display text-[18px] tracking-[-0.02em] md:text-[20px]"
-        >
-          SMILEFIT
-        </a>
-        <nav
-          data-nav
-          className="hidden items-center gap-7 text-[12px] uppercase tracking-[0.04em] md:flex"
-          style={{
-            fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-            fontWeight: 500,
-          }}
-        >
-          <a href="#training" className="hover:opacity-60">
-            Training
+      {/* ============ LETTERBOX WINDOW — clips all UI on desktop ============ */}
+      {/* On mobile the clip-path is not applied (handled via JS matchMedia). */}
+      <div
+        data-letterbox
+        className="absolute inset-0 z-[8]"
+        style={{ willChange: "clip-path" }}
+      >
+        {/* ============ NAV ============ */}
+        <header className="absolute inset-x-0 top-0 z-[40] flex items-center justify-between px-6 py-6 md:px-10 md:py-8">
+          <a
+            href="#"
+            data-nav
+            className="font-display text-[18px] tracking-[-0.02em] md:text-[20px]"
+          >
+            SMILEFIT
           </a>
-          <a href="#raume" className="hover:opacity-60">
-            Räume
-          </a>
-          <a href="#mitgliedschaft" className="hover:opacity-60">
-            Mitgliedschaft
-          </a>
-          <a href="#kontakt" className="hover:opacity-60">
-            Kontakt
-          </a>
-        </nav>
-        <a
-          href="#kontakt"
-          data-nav
-          className="text-[12px] uppercase tracking-[0.06em] md:hidden"
-          style={{
-            fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-            fontWeight: 500,
-          }}
-        >
-          Menu
-        </a>
-      </header>
-
-      {/* ============ L2 — UI BLOCK (eyebrow / headline / subhead / CTA) ============ */}
-      <div className="absolute inset-x-0 bottom-0 z-[10] px-6 pb-12 md:px-10 md:pb-16">
-        <div className="flex items-end justify-between gap-10">
-          <div className="max-w-[820px]">
-            {/* Eyebrow with accent rule */}
-            <div data-eyebrow className="mb-6 flex items-center gap-3">
-              <span
-                data-eyebrow-rule
-                className="block h-px w-12 bg-[#7a4cff]"
-                style={{ transformOrigin: "left center" }}
-              />
-              <span
-                data-eyebrow-text
-                className="text-[11px] uppercase tracking-[0.32em] text-[#7a4cff]"
-                style={{
-                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                  fontWeight: 600,
-                }}
-              >
-                Built Different.
-              </span>
-            </div>
-
-            {/* Live headline — cream type with violet fire-light inside the
-                letters (background-clip:text), per-character decode entrance,
-                and an impact chromatic-aberration beat. Real characters render
-                server-side (aria-label + SSR text) so the headline is the LCP,
-                never blocked by JS, and reads if JS fails. */}
-            <h1
-              data-headline
-              data-fire
-              aria-label="Kein Standard. Kein Zufall."
-              className="hero-fire-text font-display block leading-[0.9] tracking-[-0.02em]"
-              style={{
-                fontSize: "clamp(44px, 9vw, 150px)",
-                textTransform: "uppercase",
-                willChange: "transform, opacity, filter",
-              }}
-            >
-              {HERO_LINES.map((line, li) => (
-                <span key={li} aria-hidden className="block whitespace-nowrap">
-                  {Array.from(line).map((ch, ci) => (
-                    <span
-                      key={ci}
-                      data-char
-                      data-final={ch}
-                      className="inline-block"
-                    >
-                      {ch === " " ? "\u00a0" : ch}
-                    </span>
-                  ))}
-                </span>
-              ))}
-            </h1>
-
-            <p
-              data-subhead
-              className="mt-7 max-w-[380px] text-[13px] leading-[1.55] text-[#f2efe6]/75"
-              style={{
-                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                fontWeight: 400,
-                textTransform: "none",
-                letterSpacing: 0,
-              }}
-            >
-              Premium Training. Maschinen. Atmosphäre. Fokus.
-            </p>
-
-            <div data-cta className="mt-7">
-              <a
-                ref={cta}
-                href="#kontakt"
-                className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#f2efe6]/85 px-5 py-3 text-[11px] uppercase tracking-[0.22em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
-                style={{
-                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                  fontWeight: 600,
-                  willChange: "transform",
-                }}
-              >
-                {/* Fill-from-bottom layer */}
-                <span
-                  aria-hidden
-                  className="absolute inset-0 translate-y-full bg-[#f2efe6] transition-transform duration-500 ease-out group-hover:translate-y-0"
-                />
-                <span className="relative transition-colors duration-500 group-hover:text-[#050505]">
-                  Probetraining sichern
-                </span>
-                <span
-                  aria-hidden
-                  className="relative transition-[transform,color] duration-500 group-hover:translate-x-1 group-hover:text-[#050505]"
-                >
-                  →
-                </span>
-              </a>
-            </div>
-          </div>
-
-          {/* Animated scroll cue */}
-          <div
-            data-scrollcue
-            className="hidden flex-col items-end gap-3 text-[#f2efe6]/70 md:flex"
+          <nav
+            data-nav
+            className="hidden items-center gap-7 text-[12px] uppercase tracking-[0.04em] md:flex"
             style={{
               fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
               fontWeight: 500,
             }}
           >
-            <span className="text-[11px] uppercase tracking-[0.28em]">
-              Scroll
-            </span>
-            <span className="relative block h-14 w-px overflow-hidden bg-[#f2efe6]/15">
-              <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#f2efe6]" />
-            </span>
+            <a href="#training" className="hover:opacity-60">Training</a>
+            <a href="#raume" className="hover:opacity-60">Räume</a>
+            <a href="#mitgliedschaft" className="hover:opacity-60">Mitgliedschaft</a>
+            <a href="#kontakt" className="hover:opacity-60">Kontakt</a>
+          </nav>
+          <a
+            href="#kontakt"
+            data-nav
+            className="text-[12px] uppercase tracking-[0.06em] md:hidden"
+            style={{
+              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontWeight: 500,
+            }}
+          >
+            Menu
+          </a>
+        </header>
+
+        {/* ============ L2 — UI BLOCK ============ */}
+        <div className="absolute inset-x-0 bottom-0 z-[10] px-6 pb-12 md:px-10 md:pb-16">
+          <div className="flex items-end justify-between gap-10">
+            <div className="max-w-[820px]">
+              {/* Eyebrow */}
+              <div data-eyebrow className="mb-6 flex items-center gap-3">
+                <span
+                  data-eyebrow-rule
+                  className="block h-px w-12 bg-[#7a4cff]"
+                  style={{ transformOrigin: "left center" }}
+                />
+                <span
+                  data-eyebrow-text
+                  className="text-[11px] uppercase tracking-[0.32em] text-[#7a4cff]"
+                  style={{
+                    fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                    fontWeight: 600,
+                  }}
+                >
+                  Built Different.
+                </span>
+              </div>
+
+              {/* Headline */}
+              <h1
+                data-headline
+                data-fire
+                aria-label="Kein Standard. Kein Zufall."
+                className="hero-fire-text font-display block leading-[0.9] tracking-[-0.02em]"
+                style={{
+                  fontSize: "clamp(44px, 9vw, 150px)",
+                  textTransform: "uppercase",
+                  willChange: "transform, opacity, filter",
+                }}
+              >
+                {HERO_LINES.map((line, li) => (
+                  <span key={li} aria-hidden className="block whitespace-nowrap">
+                    {Array.from(line).map((ch, ci) => (
+                      <span
+                        key={ci}
+                        data-char
+                        data-final={ch}
+                        className="inline-block"
+                      >
+                        {ch === " " ? " " : ch}
+                      </span>
+                    ))}
+                  </span>
+                ))}
+              </h1>
+
+              <p
+                data-subhead
+                className="mt-7 max-w-[380px] text-[13px] leading-[1.55] text-[#f2efe6]/75"
+                style={{
+                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                  fontWeight: 400,
+                  textTransform: "none",
+                  letterSpacing: 0,
+                }}
+              >
+                Premium Training. Maschinen. Atmosphäre. Fokus.
+              </p>
+
+              <div data-cta className="mt-7">
+                <a
+                  ref={cta}
+                  href="#kontakt"
+                  className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#f2efe6]/85 px-5 py-3 text-[11px] uppercase tracking-[0.22em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
+                  style={{
+                    fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                    fontWeight: 600,
+                    willChange: "transform",
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 translate-y-full bg-[#f2efe6] transition-transform duration-500 ease-out group-hover:translate-y-0"
+                  />
+                  <span className="relative transition-colors duration-500 group-hover:text-[#050505]">
+                    Probetraining sichern
+                  </span>
+                  <span
+                    aria-hidden
+                    className="relative transition-[transform,color] duration-500 group-hover:translate-x-1 group-hover:text-[#050505]"
+                  >
+                    →
+                  </span>
+                </a>
+              </div>
+            </div>
+
+            {/* Scroll cue */}
+            <div
+              data-scrollcue
+              className="hidden flex-col items-end gap-3 text-[#f2efe6]/70 md:flex"
+              style={{
+                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                fontWeight: 500,
+              }}
+            >
+              <span className="text-[11px] uppercase tracking-[0.28em]">Scroll</span>
+              <span className="relative block h-14 w-px overflow-hidden bg-[#f2efe6]/15">
+                <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#f2efe6]" />
+              </span>
+            </div>
           </div>
         </div>
       </div>
