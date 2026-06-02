@@ -209,6 +209,17 @@ video {
   to   { background-position: 200% 120%, -100% 80%, 0 0; }
 }
 
+/* Subtle atmospheric particles drifting over the hero video. Two faint dot
+   fields gently rise/drift so the void feels alive without competing with the
+   footage. Kept very low opacity on the layer itself. */
+@keyframes heroParticleDrift {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 -240px, 40px -360px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-particles { animation: none !important; }
+}
+
 /* Outer glow lives on the clipped text via drop-shadow; flicker animates it. */
 @keyframes heroGlowFlicker {
   from {

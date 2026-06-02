@@ -195,6 +195,17 @@ export default function CinematicHero() {
             onUpdate: (self) => {
               // Feed scroll progress into the video scrub pipeline.
               targetVideoFrac = scrollToVideoFraction(self.progress);
+              // Scan wave: sweep top→bottom across scroll progress 0.15–0.35,
+              // fading in/out with a sine envelope so it never just pops.
+              const sw = (self.progress - 0.15) / 0.2;
+              if (sw >= 0 && sw <= 1) {
+                gsap.set("[data-scanwave]", {
+                  yPercent: sw * 640 - 100,
+                  opacity: Math.sin(sw * Math.PI) * 0.6,
+                });
+              } else {
+                gsap.set("[data-scanwave]", { opacity: 0 });
+              }
             },
           },
         });
@@ -323,6 +334,32 @@ export default function CinematicHero() {
           }}
         />
       </div>
+
+      {/* Atmospheric particles — very subtle dust drifting over the video */}
+      <div
+        className="hero-particles pointer-events-none absolute inset-0 z-[1] opacity-[0.5] mix-blend-screen"
+        style={{
+          backgroundImage:
+            "radial-gradient(1.4px 1.4px at 20% 30%, rgba(255,255,255,0.45), transparent 60%), radial-gradient(1.2px 1.2px at 70% 60%, rgba(124,108,255,0.40), transparent 60%)",
+          backgroundSize: "220px 220px, 300px 300px",
+          animation: "heroParticleDrift 26s linear infinite",
+          willChange: "background-position",
+        }}
+      />
+
+      {/* Scan wave — a thin bright sweep that crosses the frame once during the
+          early activation phase (scroll progress ~0.15–0.35). Driven from the
+          ScrollTrigger onUpdate; hidden outside that window. */}
+      <div
+        data-scanwave
+        className="pointer-events-none absolute inset-x-0 top-0 z-[2] opacity-0 mix-blend-screen"
+        style={{
+          height: "16%",
+          background:
+            "linear-gradient(180deg, transparent 0%, rgba(180,170,255,0.10) 45%, rgba(214,208,255,0.45) 50%, rgba(180,170,255,0.10) 55%, transparent 100%)",
+          willChange: "transform, opacity",
+        }}
+      />
 
       {/* Floor ring glow — appears during video peak energy phase */}
       <div
