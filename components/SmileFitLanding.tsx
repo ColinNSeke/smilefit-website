@@ -1,6 +1,7 @@
 "use client";
 
 import SmoothScroll from "./SmoothScroll";
+import MixBlendCursor from "./MixBlendCursor";
 import CinematicHero from "./CinematicHero";
 import RoomPowerOn from "./RoomPowerOn";
 import TrainingGrid from "./TrainingGrid";
@@ -12,6 +13,7 @@ import FooterCTA from "./FooterCTA";
 export default function SmileFitLanding() {
   return (
     <>
+      <MixBlendCursor />
       <SmoothScroll />
       <main className="relative w-full">
         <CinematicHero />
