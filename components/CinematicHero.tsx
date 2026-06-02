@@ -7,12 +7,10 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 const HERO_LINES = ["KEIN", "STANDARD.", "KEIN ZUFALL."] as const;
 const SCRAMBLE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ.,!?/-";
 
-/**
- * Decode entrance: each [data-char] scrambles through random glyphs, then
- * locks to its real character (data-final). The reveal ripples left→right via
- * a per-character start delay. Returns a cleanup that clears all timers and
- * restores final text. Whitespace characters are left untouched.
- */
+// Real SmileFit cinematic hero: central athlete, floating weights, black void,
+// holographic rings, premium violet energy. File: public/smilefit-hero-video (1).mp4
+const HERO_VIDEO_SRC = "/smilefit-hero-video%20(1).mp4";
+
 function runScramble(
   scope: HTMLElement,
   opts: { stagger: number; cycles: number; tick: number }
@@ -23,7 +21,7 @@ function runScramble(
 
   chars.forEach((el, i) => {
     const finalChar = el.dataset.final ?? el.textContent ?? "";
-    if (finalChar.trim() === "") return; // skip spaces
+    if (finalChar.trim() === "") return;
     const start = setTimeout(() => {
       let n = 0;
       const id = setInterval(() => {
@@ -53,31 +51,70 @@ function runScramble(
 const ABERRATION_FILTER =
   "drop-shadow(-3px 0 rgba(255,0,40,0.9)) drop-shadow(3px 0 rgba(0,120,255,0.9))";
 
-/**
- * SmileFit — Multi-scene cinematic hero.
- *
- * Scene 0 — Letterbox load: on first paint the UI sits inside a center
- *   letterbox window (clip-path: inset on [data-letterbox]). The decode
- *   scramble, purple-fire fill, impact aberration, and outer glow all play
- *   inside this contained state. A scroll cue appears after ~600ms.
- * Scene 1 — Living type: background-clip:text cream→violet fire fill with
- *   slowly panning embers and flickering neon-violet outer glow (CSS).
- * Scene 2 — Flood + handoff: pinned scrub retracts the letterbox bars,
- *   scales up the headline, floods footage, clears UI, then settles near-black
- *   so the room section takes over seamlessly.
- *
- * prefers-reduced-motion: final state shown immediately, no animations.
- */
+// Piecewise non-linear mapping: scroll progress (0-1) → video time fraction (0-1).
+// Phase 0-15%: barely moves (frozen intro reveal)
+// Phase 15-35%: activation / energy build
+// Phase 35-65%: main unlock / athlete rising
+// Phase 65-90%: peak performance
+// Phase 90-100%: final hold / open
+function scrollToVideoFraction(p: number): number {
+  const ramp = (v: number, lo: number, hi: number) =>
+    Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  if (p < 0.15) return ramp(p, 0, 0.15) * 0.04;
+  if (p < 0.35) return 0.04 + ramp(p, 0.15, 0.35) * 0.22;
+  if (p < 0.65) return 0.26 + ramp(p, 0.35, 0.65) * 0.36;
+  if (p < 0.9) return 0.62 + ramp(p, 0.65, 0.9) * 0.26;
+  return 0.88 + ramp(p, 0.9, 1.0) * 0.12;
+}
+
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
   const cta = useRef<HTMLAnchorElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     const cleanups: Array<() => void> = [];
-    const reduce = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // ---- RAF-based video scrub state ----
+    let targetVideoFrac = 0;
+    let currentVideoFrac = 0;
+    let rafId = 0;
+    let videoDuration = 0;
+
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      // Capture duration once metadata loads; video may already be loaded.
+      const onMeta = () => {
+        videoDuration = video.duration || 0;
+        if (reduce) {
+          // Show mid-point frame for reduced-motion users.
+          video.currentTime = videoDuration * 0.45;
+        }
+      };
+      if (video.readyState >= 1) {
+        videoDuration = video.duration || 0;
+      } else {
+        video.addEventListener("loadedmetadata", onMeta);
+        cleanups.push(() => video.removeEventListener("loadedmetadata", onMeta));
+      }
+
+      const tick = () => {
+        // Lerp toward target — smooth 12% per frame (~0.2s lag at 60fps).
+        currentVideoFrac += (targetVideoFrac - currentVideoFrac) * 0.12;
+        if (videoDuration > 0) {
+          const t = currentVideoFrac * videoDuration;
+          if (Math.abs(video.currentTime - t) > 0.015) {
+            video.currentTime = t;
+          }
+        }
+        rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
+      cleanups.push(() => cancelAnimationFrame(rafId));
+    }
 
     const ctx = gsap.context(() => {
       const mm = gsap.matchMedia();
@@ -98,7 +135,6 @@ export default function CinematicHero() {
         }
 
         // -------- Scene 0: impact load inside letterbox --------
-        // Start contained — bars on all four sides.
         gsap.set("[data-letterbox]", {
           clipPath: "inset(12% 18% round 0px)",
         });
@@ -108,38 +144,23 @@ export default function CinematicHero() {
           delay: 0.12,
         });
 
-        // Headline settles with a fast overshoot.
         intro.from(
           "[data-headline]",
           { scale: 1.06, duration: 1.1, ease: "expo.out" },
           0
         );
-        // Per-character decode scramble (ripples left→right, ~1s).
-        const headlineEl = root.current?.querySelector<HTMLElement>(
-          "[data-headline]"
-        );
+        const headlineEl = root.current?.querySelector<HTMLElement>("[data-headline]");
         if (headlineEl) {
-          const stop = runScramble(headlineEl, {
-            stagger: 30,
-            cycles: 25,
-            tick: 25,
-          });
+          const stop = runScramble(headlineEl, { stagger: 30, cycles: 25, tick: 25 });
           cleanups.push(stop);
         }
-        // One-frame screen shake.
         intro.to(
           root.current,
-          {
-            keyframes: { x: [0, -4, 4, -3, 2, 0] },
-            duration: 0.34,
-            ease: "none",
-          },
+          { keyframes: { x: [0, -4, 4, -3, 2, 0] }, duration: 0.34, ease: "none" },
           0.06
         );
-        // Impact chromatic-aberration.
         intro.set("[data-fire]", { filter: ABERRATION_FILTER }, 0.06);
         intro.set("[data-fire]", { clearProps: "filter" }, 0.18);
-        // Grain + vignette pulse.
         intro.fromTo(
           "[data-grain]",
           { opacity: 0.22 },
@@ -152,34 +173,16 @@ export default function CinematicHero() {
           { opacity: 0.5, duration: 0.7, ease: "power2.out" },
           0
         );
-
-        // Nav + logo drop in.
-        intro.from(
-          "[data-nav]",
-          { y: -16, opacity: 0, duration: 0.8, stagger: 0.05 },
-          0.15
-        );
-        // Eyebrow rule draws, then text.
-        intro.from(
-          "[data-eyebrow-rule]",
-          { scaleX: 0, duration: 0.7, ease: "expo.out" },
-          0.25
-        );
-        intro.from(
-          "[data-eyebrow-text]",
-          { opacity: 0, x: -8, duration: 0.6 },
-          0.45
-        );
+        intro.from("[data-nav]", { y: -16, opacity: 0, duration: 0.8, stagger: 0.05 }, 0.15);
+        intro.from("[data-eyebrow-rule]", { scaleX: 0, duration: 0.7, ease: "expo.out" }, 0.25);
+        intro.from("[data-eyebrow-text]", { opacity: 0, x: -8, duration: 0.6 }, 0.45);
         intro.from("[data-subhead]", { opacity: 0, y: 14, duration: 0.7 }, 0.7);
         intro.from("[data-cta]", { opacity: 0, y: 12, duration: 0.7 }, 0.82);
-        intro.from(
-          "[data-scrollcue]",
-          { opacity: 0, duration: 0.6 },
-          0.95
-        );
+        intro.from("[data-scrollcue]", { opacity: 0, duration: 0.6 }, 0.95);
 
-        // -------- Scene 2: flood + handoff (pinned scrub) --------
-        // Bars retract → footage floods → UI clears → near-black handoff.
+        // -------- Scene 2: scroll-scrubbed flood + handoff --------
+        // This ScrollTrigger drives both the GSAP CSS values and the video
+        // currentTime via the onUpdate callback (RAF smoothing applied above).
         const morph = gsap.timeline({
           defaults: { ease: "none" },
           scrollTrigger: {
@@ -189,50 +192,47 @@ export default function CinematicHero() {
             pin: true,
             scrub: 0.8,
             anticipatePin: 1,
+            onUpdate: (self) => {
+              // Feed scroll progress into the video scrub pipeline.
+              targetVideoFrac = scrollToVideoFraction(self.progress);
+            },
           },
         });
 
         morph
-          // Bars retract — letterbox opens to full viewport.
           .to(
             "[data-letterbox]",
             { clipPath: "inset(0% 0% round 0px)", duration: 0.55, ease: "power2.inOut" },
             0
           )
-          // Footage pushes in as bars open.
           .to("[data-bg]", { scale: 1.16 }, 0)
-          // Headline scales up and fades → footage floods the viewport.
           .to("[data-headline]", { scale: 1.45, opacity: 0, y: -40 }, 0.1)
-          // UI clears out.
           .to("[data-eyebrow]", { opacity: 0, y: -10 }, 0.25)
           .to("[data-subhead]", { opacity: 0, y: -10 }, 0.3)
           .to("[data-cta]", { opacity: 0, y: -10 }, 0.25)
           .to("[data-scrollcue]", { opacity: 0 }, 0.12)
           .to("[data-vignette]", { opacity: 0.85 }, 0.45)
-          // Settle to near-black so the (near-black) room hands off seamlessly.
+          // Violet floor-ring glow rises as video reaches peak energy.
+          .fromTo(
+            "[data-floorglow]",
+            { opacity: 0, scaleX: 0.6 },
+            { opacity: 1, scaleX: 1, duration: 0.3, ease: "power2.out" },
+            0.5
+          )
+          .to("[data-floorglow]", { opacity: 0, duration: 0.2 }, 0.78)
           .to("[data-handoff]", { opacity: 1 }, 0.82);
 
         // -------- Cursor spotlight --------
         if (hover && root.current) {
           const rootEl = root.current;
-          const qX = gsap.quickTo("[data-cursorlight]", "x", {
-            duration: 0.5,
-            ease: "power3.out",
-          });
-          const qY = gsap.quickTo("[data-cursorlight]", "y", {
-            duration: 0.5,
-            ease: "power3.out",
-          });
+          const qX = gsap.quickTo("[data-cursorlight]", "x", { duration: 0.5, ease: "power3.out" });
+          const qY = gsap.quickTo("[data-cursorlight]", "y", { duration: 0.5, ease: "power3.out" });
           gsap.set("[data-cursorlight]", { opacity: 0 });
           const onMove = (e: MouseEvent) => {
             const rect = rootEl.getBoundingClientRect();
             qX(e.clientX - rect.left);
             qY(e.clientY - rect.top);
-            gsap.to("[data-cursorlight]", {
-              opacity: 1,
-              duration: 0.4,
-              overwrite: "auto",
-            });
+            gsap.to("[data-cursorlight]", { opacity: 1, duration: 0.4, overwrite: "auto" });
           };
           const onLeave = () =>
             gsap.to("[data-cursorlight]", { opacity: 0, duration: 0.4 });
@@ -247,14 +247,8 @@ export default function CinematicHero() {
         // -------- Magnetic CTA --------
         if (hover && cta.current) {
           const btn = cta.current;
-          const qX = gsap.quickTo(btn, "x", {
-            duration: 0.35,
-            ease: "power3.out",
-          });
-          const qY = gsap.quickTo(btn, "y", {
-            duration: 0.35,
-            ease: "power3.out",
-          });
+          const qX = gsap.quickTo(btn, "x", { duration: 0.35, ease: "power3.out" });
+          const qY = gsap.quickTo(btn, "y", { duration: 0.35, ease: "power3.out" });
           const onCtaMove = (e: MouseEvent) => {
             const rect = btn.getBoundingClientRect();
             const x = e.clientX - (rect.left + rect.width / 2);
@@ -272,34 +266,26 @@ export default function CinematicHero() {
             }
           };
           window.addEventListener("mousemove", onCtaMove);
-          cleanups.push(() =>
-            window.removeEventListener("mousemove", onCtaMove)
-          );
+          cleanups.push(() => window.removeEventListener("mousemove", onCtaMove));
         }
       });
 
       // ===================== MOBILE =====================
+      // Mobile: let video autoplay (no scrub) — simpler reveal.
       mm.add("(max-width: 767px)", () => {
+        if (video) {
+          // On mobile, autoplay so there's always motion.
+          video.loop = true;
+          video.play().catch(() => {/* autoplay blocked — static poster is fine */});
+        }
         if (reduce) return;
         gsap.from(
           "[data-nav], [data-eyebrow], [data-headline], [data-subhead], [data-cta]",
-          {
-            opacity: 0,
-            y: 22,
-            duration: 0.8,
-            ease: "power3.out",
-            stagger: 0.08,
-          }
+          { opacity: 0, y: 22, duration: 0.8, ease: "power3.out", stagger: 0.08 }
         );
-        const headlineEl = root.current?.querySelector<HTMLElement>(
-          "[data-headline]"
-        );
+        const headlineEl = root.current?.querySelector<HTMLElement>("[data-headline]");
         if (headlineEl) {
-          const stop = runScramble(headlineEl, {
-            stagger: 12,
-            cycles: 12,
-            tick: 22,
-          });
+          const stop = runScramble(headlineEl, { stagger: 12, cycles: 12, tick: 22 });
           cleanups.push(stop);
         }
       });
@@ -316,18 +302,17 @@ export default function CinematicHero() {
       ref={root}
       className="relative h-screen w-full overflow-hidden bg-[#050505] text-[#f2efe6]"
     >
-      {/* ============ L0 — BACKGROUND VIDEO (always full viewport) ============ */}
+      {/* ============ L0 — BACKGROUND VIDEO ============ */}
       <div data-bg className="absolute inset-0 z-0" style={{ willChange: "transform" }}>
         <video
-          src="/media/hero-a.mp4"
+          ref={videoRef}
+          src={HERO_VIDEO_SRC}
           poster="/hero/poster.jpg"
           className="absolute inset-0 h-full w-full object-cover"
           style={{ filter: "brightness(1.15) saturate(1.1)" }}
           muted
-          autoPlay
-          loop
           playsInline
-          preload="metadata"
+          preload="auto"
         />
         {/* Violet wash */}
         <div
@@ -338,6 +323,18 @@ export default function CinematicHero() {
           }}
         />
       </div>
+
+      {/* Floor ring glow — appears during video peak energy phase */}
+      <div
+        data-floorglow
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] opacity-0"
+        style={{
+          height: "38%",
+          background:
+            "radial-gradient(ellipse 80% 40% at 50% 100%, rgba(122,76,255,0.38) 0%, transparent 70%)",
+          willChange: "transform, opacity",
+        }}
+      />
 
       {/* Cursor spotlight */}
       <div
@@ -371,14 +368,13 @@ export default function CinematicHero() {
         }}
       />
 
-      {/* ============ LETTERBOX WINDOW — clips all UI on desktop ============ */}
-      {/* On mobile the clip-path is not applied (handled via JS matchMedia). */}
+      {/* ============ LETTERBOX WINDOW ============ */}
       <div
         data-letterbox
         className="absolute inset-0 z-[8]"
         style={{ willChange: "clip-path" }}
       >
-        {/* ============ NAV ============ */}
+        {/* NAV */}
         <header className="absolute inset-x-0 top-0 z-[40] flex items-center justify-between px-6 py-6 md:px-10 md:py-8">
           <a
             href="#"
@@ -390,10 +386,7 @@ export default function CinematicHero() {
           <nav
             data-nav
             className="hidden items-center gap-7 text-[12px] uppercase tracking-[0.04em] md:flex"
-            style={{
-              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-              fontWeight: 500,
-            }}
+            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
             <a href="#training" className="hover:opacity-60">Training</a>
             <a href="#raume" className="hover:opacity-60">Räume</a>
@@ -404,16 +397,13 @@ export default function CinematicHero() {
             href="#kontakt"
             data-nav
             className="text-[12px] uppercase tracking-[0.06em] md:hidden"
-            style={{
-              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-              fontWeight: 500,
-            }}
+            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
             Menu
           </a>
         </header>
 
-        {/* ============ L2 — UI BLOCK ============ */}
+        {/* UI BLOCK */}
         <div className="absolute inset-x-0 bottom-0 z-[10] px-6 pb-12 md:px-10 md:pb-16">
           <div className="flex items-end justify-between gap-10">
             <div className="max-w-[820px]">
@@ -427,10 +417,7 @@ export default function CinematicHero() {
                 <span
                   data-eyebrow-text
                   className="text-[11px] uppercase tracking-[0.32em] text-[#7a4cff]"
-                  style={{
-                    fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                    fontWeight: 600,
-                  }}
+                  style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600 }}
                 >
                   Built Different.
                 </span>
@@ -451,12 +438,7 @@ export default function CinematicHero() {
                 {HERO_LINES.map((line, li) => (
                   <span key={li} aria-hidden className="block whitespace-nowrap">
                     {Array.from(line).map((ch, ci) => (
-                      <span
-                        key={ci}
-                        data-char
-                        data-final={ch}
-                        className="inline-block"
-                      >
+                      <span key={ci} data-char data-final={ch} className="inline-block">
                         {ch === " " ? " " : ch}
                       </span>
                     ))}
@@ -467,12 +449,7 @@ export default function CinematicHero() {
               <p
                 data-subhead
                 className="mt-7 max-w-[380px] text-[13px] leading-[1.55] text-[#f2efe6]/75"
-                style={{
-                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                  fontWeight: 400,
-                  textTransform: "none",
-                  letterSpacing: 0,
-                }}
+                style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 400 }}
               >
                 Premium Training. Maschinen. Atmosphäre. Fokus.
               </p>
@@ -482,11 +459,7 @@ export default function CinematicHero() {
                   ref={cta}
                   href="#kontakt"
                   className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#f2efe6]/85 px-5 py-3 text-[11px] uppercase tracking-[0.22em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
-                  style={{
-                    fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                    fontWeight: 600,
-                    willChange: "transform",
-                  }}
+                  style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600, willChange: "transform" }}
                 >
                   <span
                     aria-hidden
@@ -509,10 +482,7 @@ export default function CinematicHero() {
             <div
               data-scrollcue
               className="hidden flex-col items-end gap-3 text-[#f2efe6]/70 md:flex"
-              style={{
-                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
-                fontWeight: 500,
-              }}
+              style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
             >
               <span className="text-[11px] uppercase tracking-[0.28em]">Scroll</span>
               <span className="relative block h-14 w-px overflow-hidden bg-[#f2efe6]/15">
@@ -523,7 +493,7 @@ export default function CinematicHero() {
         </div>
       </div>
 
-      {/* ============ HANDOFF VEIL ============ */}
+      {/* HANDOFF VEIL */}
       <div
         data-handoff
         className="pointer-events-none absolute inset-0 z-[30] bg-[#050505] opacity-0"
