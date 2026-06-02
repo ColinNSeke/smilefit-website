@@ -113,7 +113,7 @@ export default function HorizontalGallery() {
     <section
       ref={root}
       id="raume"
-      className="relative w-full overflow-hidden bg-[#f2efe6] text-[#050505]"
+      className="relative w-full overflow-hidden bg-[#08080a] text-[#f2efe6]"
       style={{ height: "100vh" }}
     >
       {/* Header overlay */}
@@ -130,7 +130,7 @@ export default function HorizontalGallery() {
       >
         {/* Intro title block as first item */}
         <div className="flex h-[78vh] w-[80vh] shrink-0 flex-col justify-between py-10">
-          <span className="font-mono-label text-[#050505]/60">
+          <span className="font-mono-label text-[#f2efe6]/60">
             GALLERY — 03
           </span>
           <h2 className="font-display text-[12vw] leading-[0.86] md:text-[clamp(80px,8vw,160px)]">
@@ -142,7 +142,7 @@ export default function HorizontalGallery() {
             <br />
             MIT.
           </h2>
-          <span className="font-mono-label text-[#050505]/60">
+          <span className="font-mono-label text-[#f2efe6]/60">
             08 RÄUME — SCROLL →
           </span>
         </div>
@@ -170,15 +170,15 @@ export default function HorizontalGallery() {
       {/* Progress bar */}
       <div className="pointer-events-none absolute inset-x-6 bottom-6 z-20 md:inset-x-10 md:bottom-10">
         <div className="flex items-center gap-4">
-          <span className="font-mono-label text-[#050505]/60">PROGRESS</span>
-          <div className="relative h-px flex-1 bg-[#050505]/20">
+          <span className="font-mono-label text-[#f2efe6]/60">PROGRESS</span>
+          <div className="relative h-px flex-1 bg-[#f2efe6]/20">
             <div
               ref={progress}
-              className="absolute inset-y-0 left-0 origin-left bg-[#050505]"
+              className="absolute inset-y-0 left-0 origin-left bg-[#f2efe6]"
               style={{ width: "100%", transform: "scaleX(0)" }}
             />
           </div>
-          <span className="font-mono-label text-[#050505]/60">08</span>
+          <span className="font-mono-label text-[#f2efe6]/60">08</span>
         </div>
       </div>
     </section>

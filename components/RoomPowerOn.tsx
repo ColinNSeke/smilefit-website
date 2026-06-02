@@ -1,106 +1,43 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 /**
  * SmileFit — "Der Raum trainiert mit." Room power-on section.
  *
- * The gym room starts near-black, then powers on zone by zone as the user
- * scrolls: hex ceiling lights ignite, the machine resolves from shadow, the
- * back Hammer Strength rack illuminates, the floor markings glow in — until
- * the full room is alive and the base photo reads at its natural exposure.
+ * The gym room starts near-black, then powers on as the user scrolls: the
+ * base photo's brightness and saturation animate from dim to neutral so the
+ * full room reads alive. A black overlay lifts in sync.
  *
- * Mechanic: a full base photo (room.jpg) sits dimmed via a CSS filter + a
- * black overlay. Each zone-N.png is a rectangular crop of room.jpg, placed
- * back in its source position at opacity 0; revealing it is pure opacity —
- * because the underlying pixels match, the rectangle edges are invisible.
+ * Drop the new photo at /public/raume/02.jpg — the section references that
+ * path and will begin rendering as soon as the file exists.
  *
- * The plate is held at room.jpg's native aspect ratio so the zone percentage
- * positions line up exactly with the cover-framed base.
- *
- * Fallback: if the zone crops fail to load, the base still powers on via the
- * global brightness/saturate reveal — the section never breaks.
- * Mobile / reduced-motion: the fully-lit room, no pin / scrub / per-zone work.
+ * Mobile / reduced-motion: the fully-lit room, no pin / scrub.
  */
-type Zone = {
-  id: string;
-  src: string;
-  left: string;
-  top: string;
-  width: string;
-  height: string;
-  order: number;
-};
-
-// Percentages of room.jpg's natural dimensions — tune by eye if needed.
-const ZONES: Zone[] = [
-  { id: "zone-1", src: "/room/zone-1.png", left: "0%", top: "0%", width: "100%", height: "38%", order: 1 }, // lights
-  { id: "zone-3", src: "/room/zone-3.png", left: "25%", top: "40%", width: "38%", height: "53%", order: 2 }, // machine
-  { id: "zone-4", src: "/room/zone-4.png", left: "69%", top: "43%", width: "31%", height: "24%", order: 3 }, // hammer rack
-  { id: "zone-2", src: "/room/zone-2.png", left: "27%", top: "71%", width: "53%", height: "27%", order: 4 }, // floor tape
-];
-
-// Aspect ratio of room.jpg (360 x 426) — keeps zone % positions aligned.
-const ROOM_ASPECT = "360 / 426";
 
 const DIM_FILTER = "brightness(0.18) saturate(0.35) contrast(1.05)";
-const LIT_FILTER = "brightness(1) saturate(1) contrast(1)";
+const LIT_FILTER  = "brightness(1) saturate(1) contrast(1)";
 
-/**
- * The room plate: dimmable base photo + zone crops in source position + a
- * black dim overlay. `lit` is the render-time default; GSAP drives the live
- * states from `data-*` hooks. Hoisted to module scope so it isn't recreated
- * on every render.
- */
-function RoomPlate({
-  lit,
-  failed,
-  onFail,
-}: {
-  lit: boolean;
-  failed: Record<string, boolean>;
-  onFail: (id: string) => void;
-}) {
+function RoomPlate({ lit }: { lit: boolean }) {
   return (
-    <div
-      className="absolute left-0 w-full"
-      style={{ top: "50%", transform: "translateY(-50%)", aspectRatio: ROOM_ASPECT }}
-    >
-      {/* Base plate */}
+    <div className="absolute inset-0">
+      {/* Dark placeholder renders until /raume/02.jpg is provided. */}
+      <div
+        className="absolute inset-0 media-fallback"
+        aria-hidden
+      />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         data-base
-        src="/room/room.jpg"
+        src="/raume/02.jpg"
         alt="SmileFit Trainingsraum — Maschinen, Neon und Hammer-Strength-Rack."
         className="absolute inset-0 h-full w-full object-cover"
         style={{ filter: lit ? LIT_FILTER : DIM_FILTER, willChange: "filter" }}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
       />
-
-      {/* Zone crops, back in their source positions. */}
-      {ZONES.filter((z) => !failed[z.id]).map((z) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={z.id}
-          data-zone={z.id}
-          src={z.src}
-          alt=""
-          aria-hidden
-          onError={() => onFail(z.id)}
-          className="absolute h-auto w-auto object-cover"
-          style={{
-            left: z.left,
-            top: z.top,
-            width: z.width,
-            height: z.height,
-            opacity: lit ? 1 : 0,
-            willChange: "opacity",
-          }}
-        />
-      ))}
-
-      {/* Global dim overlay for extra depth. */}
+      {/* Global dim overlay lifts as the room powers on. */}
       <div
         data-dim
         className="pointer-events-none absolute inset-0 bg-black"
@@ -111,33 +48,21 @@ function RoomPlate({
 }
 
 export default function RoomPowerOn() {
-  const root = useRef<HTMLElement | null>(null);
+  const root  = useRef<HTMLElement | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
-  const [failed, setFailed] = useState<Record<string, boolean>>({});
-
-  const markFailed = (id: string) =>
-    setFailed((f) => (f[id] ? f : { ...f, [id]: true }));
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
-    const reduce = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // Preload base + zone images before wiring the pinned timeline.
-    const sources = ["/room/room.jpg", ...ZONES.map((z) => z.src)];
+    // Preload base before wiring the pinned timeline.
     let cancelled = false;
-    const preload = Promise.all(
-      sources.map(
-        (src) =>
-          new Promise<void>((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            img.src = src;
-          })
-      )
-    );
+    const preload = new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+      img.src = "/raume/02.jpg";
+    });
 
     const ctx = gsap.context(() => {}, root);
 
@@ -151,8 +76,7 @@ export default function RoomPowerOn() {
         mm.add("(min-width: 768px)", () => {
           if (reduce) {
             gsap.set("[data-base]", { filter: LIT_FILTER });
-            gsap.set("[data-dim]", { opacity: 0 });
-            gsap.set("[data-zone]", { opacity: 1 });
+            gsap.set("[data-dim]",  { opacity: 0 });
             gsap.set("[data-title-line]", { yPercent: 0 });
             gsap.set("[data-mono]", { opacity: 1, y: 0 });
             return;
@@ -160,8 +84,7 @@ export default function RoomPowerOn() {
 
           // Initial near-dark state.
           gsap.set("[data-base]", { filter: DIM_FILTER });
-          gsap.set("[data-dim]", { opacity: 0.55 });
-          gsap.set("[data-zone]", { opacity: 0 });
+          gsap.set("[data-dim]",  { opacity: 0.55 });
           gsap.set("[data-title-line]", { yPercent: 110 });
           gsap.set("[data-mono]", { opacity: 0, y: 12 });
 
@@ -177,29 +100,18 @@ export default function RoomPowerOn() {
             },
           });
 
-          // Zones ignite in choreographed order: lights → machine → rack → floor.
-          tl.to("[data-zone='zone-1']", { opacity: 1, duration: 0.18 }, 0.05)
-            .to("[data-zone='zone-3']", { opacity: 1, duration: 0.18 }, 0.25)
-            .to("[data-zone='zone-4']", { opacity: 1, duration: 0.18 }, 0.45)
-            .to("[data-zone='zone-2']", { opacity: 1, duration: 0.18 }, 0.6)
-            // The room comes fully alive: dim lifts, base returns to neutral.
-            .to("[data-dim]", { opacity: 0, duration: 0.35 }, 0.55)
-            .to("[data-base]", { filter: LIT_FILTER, duration: 0.4 }, 0.55)
-            // Headline + mono label resolve as the build completes.
-            .to(
-              "[data-title-line]",
-              { yPercent: 0, duration: 0.22, stagger: 0.08 },
-              0.62
-            )
-            .to("[data-mono]", { opacity: 1, y: 0, duration: 0.18 }, 0.9);
+          // Dim overlay lifts, base filter returns to neutral.
+          tl.to("[data-dim]",  { opacity: 0, duration: 0.5 }, 0.1)
+            .to("[data-base]", { filter: LIT_FILTER, duration: 0.55 }, 0.1)
+            // Headline + mono label resolve as the room comes alive.
+            .to("[data-title-line]", { yPercent: 0, duration: 0.22, stagger: 0.08 }, 0.55)
+            .to("[data-mono]", { opacity: 1, y: 0, duration: 0.18 }, 0.85);
         });
 
         // ===================== MOBILE =====================
         mm.add("(max-width: 767px)", () => {
-          // Fully-lit room; no pin / scrub / per-zone reveal.
           gsap.set("[data-base]", { filter: LIT_FILTER });
-          gsap.set("[data-dim]", { opacity: 0 });
-          gsap.set("[data-zone]", { opacity: 1 });
+          gsap.set("[data-dim]",  { opacity: 0 });
           if (reduce) {
             gsap.set("[data-title-line]", { yPercent: 0 });
             gsap.set("[data-mono]", { opacity: 1, y: 0 });
@@ -239,8 +151,8 @@ export default function RoomPowerOn() {
     >
       {/* ===== MOBILE — fully-lit room ===== */}
       <div className="relative overflow-hidden px-6 py-20 md:hidden">
-        <div className="relative aspect-[360/426] w-full overflow-hidden">
-          <RoomPlate lit failed={failed} onFail={markFailed} />
+        <div className="relative aspect-video w-full overflow-hidden">
+          <RoomPlate lit />
         </div>
         <div className="mt-8 flex items-start justify-between">
           <span
@@ -262,14 +174,10 @@ export default function RoomPowerOn() {
           style={{ fontSize: "clamp(40px, 12vw, 80px)", textTransform: "uppercase" }}
         >
           <span className="block overflow-hidden">
-            <span data-title-line className="block">
-              Der Raum
-            </span>
+            <span data-title-line className="block">Der Raum</span>
           </span>
           <span className="block overflow-hidden">
-            <span data-title-line className="block">
-              trainiert mit.
-            </span>
+            <span data-title-line className="block">trainiert mit.</span>
           </span>
         </h2>
       </div>
@@ -279,7 +187,7 @@ export default function RoomPowerOn() {
         ref={stage}
         className="relative hidden h-screen w-full overflow-hidden md:block"
       >
-        <RoomPlate lit={false} failed={failed} onFail={markFailed} />
+        <RoomPlate lit={false} />
 
         {/* Grain */}
         <div
@@ -315,14 +223,10 @@ export default function RoomPowerOn() {
             style={{ fontSize: "clamp(40px, 6vw, 104px)", textTransform: "uppercase" }}
           >
             <span className="block overflow-hidden">
-              <span data-title-line className="block">
-                Der Raum
-              </span>
+              <span data-title-line className="block">Der Raum</span>
             </span>
             <span className="block overflow-hidden">
-              <span data-title-line className="block">
-                trainiert mit.
-              </span>
+              <span data-title-line className="block">trainiert mit.</span>
             </span>
           </h2>
         </div>
