@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import HeroThreeOverlay, { type HeroOverlayHandle } from "./HeroThreeOverlay";
 
 // Real SmileFit cinematic hero: central athlete, floating weights, black void,
 // holographic rings, premium violet energy. File: public/smilefit-hero-video (1).mp4
@@ -30,6 +31,7 @@ const TABS = ["PROBETRAINING", "MITGLIEDSCHAFT", "TRAINING", "WELLNESS"] as cons
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
   const cta = useRef<HTMLAnchorElement | null>(null);
+  const overlay = useRef<HeroOverlayHandle | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -128,6 +130,8 @@ export default function CinematicHero() {
             onUpdate: (self) => {
               const p = self.progress;
               targetVideoFrac = scrollToVideoFraction(p);
+              // Same scroll progress drives the Three.js overlay objects.
+              overlay.current?.setProgress(p);
 
               // Scan wave sweeps once across the activation window 0.15–0.35.
               const sw = (p - 0.15) / 0.2;
@@ -196,6 +200,8 @@ export default function CinematicHero() {
           const btn = cta.current;
           const glow = root.current?.querySelector<HTMLElement>("[data-ctaglow]") ?? null;
           const onEnter = () => {
+            // Rings brighten + weights vibrate slightly via the overlay.
+            overlay.current?.pulse();
             if (glow) gsap.to(glow, { opacity: 1, duration: 0.5, ease: "power2.out" });
             gsap.to("[data-floorglow]", { opacity: "+=0.12", duration: 0.6, overwrite: "auto" });
             gsap.to(btn, {
@@ -269,10 +275,16 @@ export default function CinematicHero() {
         />
       </div>
 
+      {/* ===== L2 — THREE.JS TRANSPARENT OVERLAY (weights / rings / particles) */}
+      <HeroThreeOverlay
+        ref={overlay}
+        className="pointer-events-none absolute inset-0 z-[1]"
+      />
+
       {/* Atmospheric particles — subtle dust drifting over the video */}
       <div
         data-particles
-        className="hero-particles pointer-events-none absolute inset-0 z-[1] opacity-[0.55] mix-blend-screen"
+        className="hero-particles pointer-events-none absolute inset-0 z-[2] opacity-[0.55] mix-blend-screen"
         style={{
           backgroundImage:
             "radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,0.5), transparent 60%), radial-gradient(1.3px 1.3px at 70% 60%, rgba(150,130,255,0.45), transparent 60%)",
@@ -285,7 +297,7 @@ export default function CinematicHero() {
       {/* Scan wave — thin bright sweep during activation (scroll 0.15–0.35) */}
       <div
         data-scanwave
-        className="pointer-events-none absolute inset-x-0 top-0 z-[2] opacity-0 mix-blend-screen"
+        className="pointer-events-none absolute inset-x-0 top-0 z-[3] opacity-0 mix-blend-screen"
         style={{
           height: "14%",
           background:
@@ -297,7 +309,7 @@ export default function CinematicHero() {
       {/* Floor / ring glow — restrained violet, rises with scroll */}
       <div
         data-floorglow
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] opacity-0"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] opacity-0"
         style={{
           height: "34%",
           background:
@@ -325,6 +337,16 @@ export default function CinematicHero() {
           backgroundImage:
             "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")",
           backgroundSize: "180px 180px",
+        }}
+      />
+
+      {/* ===== L4 — READABILITY GRADIENT (keeps centered copy legible) ===== */}
+      <div
+        data-readability
+        className="pointer-events-none absolute inset-0 z-[6]"
+        style={{
+          background:
+            "radial-gradient(70% 55% at 50% 52%, rgba(5,5,5,0.55) 0%, rgba(5,5,5,0.18) 45%, transparent 75%)",
         }}
       />
 
