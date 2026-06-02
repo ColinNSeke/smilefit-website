@@ -58,6 +58,15 @@ html.lenis body {
   text-transform: uppercase;
 }
 
+/* Editorial luxury serif for the hero headline — high-contrast Didot/Bodoni
+   class faces that read as quiet, expensive, magazine-cover typography. */
+.font-serif-editorial {
+  font-family: "Didot", "Bodoni 72", "Bodoni MT", "Playfair Display",
+    "Hoefler Text", Georgia, "Times New Roman", serif;
+  letter-spacing: -0.01em;
+  line-height: 0.98;
+}
+
 .font-mono-label {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-weight: 500;

@@ -4,72 +4,33 @@ import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-const HERO_LINES = ["KEIN", "STANDARD.", "KEIN ZUFALL."] as const;
-const SCRAMBLE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ.,!?/-";
-
 // Real SmileFit cinematic hero: central athlete, floating weights, black void,
 // holographic rings, premium violet energy. File: public/smilefit-hero-video (1).mp4
 const HERO_VIDEO_SRC = "/smilefit-hero-video%20(1).mp4";
 
-function runScramble(
-  scope: HTMLElement,
-  opts: { stagger: number; cycles: number; tick: number }
-): () => void {
-  const chars = Array.from(scope.querySelectorAll<HTMLElement>("[data-char]"));
-  const timers: ReturnType<typeof setTimeout>[] = [];
-  const intervals: ReturnType<typeof setInterval>[] = [];
-
-  chars.forEach((el, i) => {
-    const finalChar = el.dataset.final ?? el.textContent ?? "";
-    if (finalChar.trim() === "") return;
-    const start = setTimeout(() => {
-      let n = 0;
-      const id = setInterval(() => {
-        if (n >= opts.cycles) {
-          clearInterval(id);
-          el.textContent = finalChar;
-          return;
-        }
-        el.textContent =
-          SCRAMBLE_GLYPHS[Math.floor(Math.random() * SCRAMBLE_GLYPHS.length)];
-        n++;
-      }, opts.tick);
-      intervals.push(id);
-    }, i * opts.stagger);
-    timers.push(start);
-  });
-
-  return () => {
-    timers.forEach(clearTimeout);
-    intervals.forEach(clearInterval);
-    chars.forEach((el) => {
-      if (el.dataset.final !== undefined) el.textContent = el.dataset.final;
-    });
-  };
-}
-
-const ABERRATION_FILTER =
-  "drop-shadow(-3px 0 rgba(255,0,40,0.9)) drop-shadow(3px 0 rgba(0,120,255,0.9))";
-
-// Piecewise non-linear mapping: scroll progress (0-1) → video time fraction (0-1).
-// Phase 0-15%: barely moves (frozen intro reveal)
-// Phase 15-35%: activation / energy build
-// Phase 35-65%: main unlock / athlete rising
-// Phase 65-90%: peak performance
-// Phase 90-100%: final hold / open
+// Stronger, clearly-staged scroll → video time mapping so the chamber visibly
+// unlocks as you scroll:
+//   0.00–0.15 → 0.00–0.04   frozen tension
+//   0.15–0.35 → 0.04–0.28   activation begins
+//   0.35–0.65 → 0.28–0.72   weights / rings / energy clearly move
+//   0.65–0.90 → 0.72–0.95   peak motion
+//   0.90–1.00 → 0.95–1.00   open-up
 function scrollToVideoFraction(p: number): number {
   const ramp = (v: number, lo: number, hi: number) =>
     Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
   if (p < 0.15) return ramp(p, 0, 0.15) * 0.04;
-  if (p < 0.35) return 0.04 + ramp(p, 0.15, 0.35) * 0.22;
-  if (p < 0.65) return 0.26 + ramp(p, 0.35, 0.65) * 0.36;
-  if (p < 0.9) return 0.62 + ramp(p, 0.65, 0.9) * 0.26;
-  return 0.88 + ramp(p, 0.9, 1.0) * 0.12;
+  if (p < 0.35) return 0.04 + ramp(p, 0.15, 0.35) * 0.24;
+  if (p < 0.65) return 0.28 + ramp(p, 0.35, 0.65) * 0.44;
+  if (p < 0.9) return 0.72 + ramp(p, 0.65, 0.9) * 0.23;
+  return 0.95 + ramp(p, 0.9, 1.0) * 0.05;
 }
+
+const TABS = ["PROBETRAINING", "MITGLIEDSCHAFT", "TRAINING", "WELLNESS"] as const;
 
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
   const cta = useRef<HTMLAnchorElement | null>(null);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -86,29 +47,22 @@ export default function CinematicHero() {
     const video = videoRef.current;
     if (video) {
       video.pause();
-      // Capture duration once metadata loads; video may already be loaded.
       const onMeta = () => {
         videoDuration = video.duration || 0;
-        if (reduce) {
-          // Show mid-point frame for reduced-motion users.
-          video.currentTime = videoDuration * 0.45;
-        }
+        if (reduce) video.currentTime = videoDuration * 0.45;
       };
-      if (video.readyState >= 1) {
-        videoDuration = video.duration || 0;
-      } else {
+      if (video.readyState >= 1) videoDuration = video.duration || 0;
+      else {
         video.addEventListener("loadedmetadata", onMeta);
         cleanups.push(() => video.removeEventListener("loadedmetadata", onMeta));
       }
 
       const tick = () => {
-        // Lerp toward target — smooth 12% per frame (~0.2s lag at 60fps).
-        currentVideoFrac += (targetVideoFrac - currentVideoFrac) * 0.12;
+        // Snappier lerp (0.18) so scroll motion is clearly visible.
+        currentVideoFrac += (targetVideoFrac - currentVideoFrac) * 0.18;
         if (videoDuration > 0) {
           const t = currentVideoFrac * videoDuration;
-          if (Math.abs(video.currentTime - t) > 0.015) {
-            video.currentTime = t;
-          }
+          if (Math.abs(video.currentTime - t) > 0.01) video.currentTime = t;
         }
         rafId = requestAnimationFrame(tick);
       };
@@ -125,83 +79,62 @@ export default function CinematicHero() {
 
         if (reduce) {
           gsap.set("[data-letterbox]", { clipPath: "inset(0% 0%)" });
-          gsap.set("[data-headline]", { opacity: 1, scale: 1 });
-          gsap.set("[data-eyebrow-rule]", { scaleX: 1 });
           gsap.set(
-            "[data-nav], [data-eyebrow-text], [data-subhead], [data-cta], [data-scrollcue]",
-            { opacity: 1, y: 0, x: 0 }
+            "[data-nav], [data-eyebrow], [data-line], [data-support], [data-cta], [data-tabs], [data-scrollcue]",
+            { opacity: 1, y: 0, clipPath: "inset(0% 0%)" }
           );
           return;
         }
 
-        // -------- Scene 0: impact load inside letterbox --------
-        gsap.set("[data-letterbox]", {
-          clipPath: "inset(12% 18% round 0px)",
-        });
+        // -------- Scene 0: quiet editorial load inside letterbox --------
+        gsap.set("[data-letterbox]", { clipPath: "inset(8% 12% round 0px)" });
+        gsap.set("[data-line]", { clipPath: "inset(0% 0% 100% 0%)" });
 
         const intro = gsap.timeline({
-          defaults: { ease: "power4.out" },
-          delay: 0.12,
+          defaults: { ease: "power3.out" },
+          delay: 0.15,
         });
+        intro
+          .from("[data-nav]", { y: -14, opacity: 0, duration: 0.9, stagger: 0.06 }, 0)
+          .from("[data-eyebrow]", { y: 12, opacity: 0, duration: 0.9 }, 0.15)
+          // Headline lines rise behind a clip mask — calm, magazine reveal.
+          .to(
+            "[data-line]",
+            { clipPath: "inset(0% 0% 0% 0%)", duration: 1.15, ease: "expo.out", stagger: 0.14 },
+            0.25
+          )
+          .from(
+            "[data-line]",
+            { yPercent: 18, duration: 1.15, ease: "expo.out", stagger: 0.14 },
+            0.25
+          )
+          .from("[data-support]", { y: 12, opacity: 0, duration: 0.9 }, 0.7)
+          .from("[data-cta] > *", { y: 14, opacity: 0, duration: 0.8, stagger: 0.1 }, 0.85)
+          .from("[data-tab]", { y: 10, opacity: 0, duration: 0.7, stagger: 0.06 }, 0.95)
+          .from("[data-scrollcue]", { opacity: 0, duration: 0.7 }, 1.05)
+          // Floor glow breathes in to a quiet resting level.
+          .fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.32, duration: 1.2 }, 0.4);
 
-        intro.from(
-          "[data-headline]",
-          { scale: 1.06, duration: 1.1, ease: "expo.out" },
-          0
-        );
-        const headlineEl = root.current?.querySelector<HTMLElement>("[data-headline]");
-        if (headlineEl) {
-          const stop = runScramble(headlineEl, { stagger: 30, cycles: 25, tick: 25 });
-          cleanups.push(stop);
-        }
-        intro.to(
-          root.current,
-          { keyframes: { x: [0, -4, 4, -3, 2, 0] }, duration: 0.34, ease: "none" },
-          0.06
-        );
-        intro.set("[data-fire]", { filter: ABERRATION_FILTER }, 0.06);
-        intro.set("[data-fire]", { clearProps: "filter" }, 0.18);
-        intro.fromTo(
-          "[data-grain]",
-          { opacity: 0.22 },
-          { opacity: 0.08, duration: 0.7, ease: "power2.out" },
-          0
-        );
-        intro.fromTo(
-          "[data-vignette]",
-          { opacity: 0.85 },
-          { opacity: 0.5, duration: 0.7, ease: "power2.out" },
-          0
-        );
-        intro.from("[data-nav]", { y: -16, opacity: 0, duration: 0.8, stagger: 0.05 }, 0.15);
-        intro.from("[data-eyebrow-rule]", { scaleX: 0, duration: 0.7, ease: "expo.out" }, 0.25);
-        intro.from("[data-eyebrow-text]", { opacity: 0, x: -8, duration: 0.6 }, 0.45);
-        intro.from("[data-subhead]", { opacity: 0, y: 14, duration: 0.7 }, 0.7);
-        intro.from("[data-cta]", { opacity: 0, y: 12, duration: 0.7 }, 0.82);
-        intro.from("[data-scrollcue]", { opacity: 0, duration: 0.6 }, 0.95);
-
-        // -------- Scene 2: scroll-scrubbed flood + handoff --------
-        // This ScrollTrigger drives both the GSAP CSS values and the video
-        // currentTime via the onUpdate callback (RAF smoothing applied above).
+        // -------- Scene 1: scroll-scrubbed activation + handoff --------
         const morph = gsap.timeline({
           defaults: { ease: "none" },
           scrollTrigger: {
             trigger: root.current,
             start: "top top",
-            end: "+=140%",
+            end: "+=170%",
             pin: true,
-            scrub: 0.8,
+            scrub: 0.5,
             anticipatePin: 1,
             onUpdate: (self) => {
-              // Feed scroll progress into the video scrub pipeline.
-              targetVideoFrac = scrollToVideoFraction(self.progress);
-              // Scan wave: sweep top→bottom across scroll progress 0.15–0.35,
-              // fading in/out with a sine envelope so it never just pops.
-              const sw = (self.progress - 0.15) / 0.2;
+              const p = self.progress;
+              targetVideoFrac = scrollToVideoFraction(p);
+
+              // Scan wave sweeps once across the activation window 0.15–0.35.
+              const sw = (p - 0.15) / 0.2;
               if (sw >= 0 && sw <= 1) {
                 gsap.set("[data-scanwave]", {
-                  yPercent: sw * 640 - 100,
-                  opacity: Math.sin(sw * Math.PI) * 0.6,
+                  yPercent: sw * 620 - 110,
+                  opacity: Math.sin(sw * Math.PI) * 0.7,
                 });
               } else {
                 gsap.set("[data-scanwave]", { opacity: 0 });
@@ -211,29 +144,33 @@ export default function CinematicHero() {
         });
 
         morph
+          // Letterbox opens as activation begins.
           .to(
             "[data-letterbox]",
-            { clipPath: "inset(0% 0% round 0px)", duration: 0.55, ease: "power2.inOut" },
-            0
+            { clipPath: "inset(0% 0% round 0px)", duration: 0.35, ease: "power2.inOut" },
+            0.1
           )
-          .to("[data-bg]", { scale: 1.16 }, 0)
-          .to("[data-headline]", { scale: 1.45, opacity: 0, y: -40 }, 0.1)
-          .to("[data-eyebrow]", { opacity: 0, y: -10 }, 0.25)
-          .to("[data-subhead]", { opacity: 0, y: -10 }, 0.3)
-          .to("[data-cta]", { opacity: 0, y: -10 }, 0.25)
+          // Footage pushes in subtly through the unlock.
+          .to("[data-bg]", { scale: 1.12 }, 0)
+          // Floor glow rises from resting → activation → peak.
+          .to("[data-floorglow]", { opacity: 0.55 }, 0.15)
+          .to("[data-floorglow]", { opacity: 0.85 }, 0.5)
+          // Particles drift faster as the chamber unlocks.
+          .to("[data-particles]", { opacity: 0.85 }, 0.3)
+          // Editorial copy holds during frozen tension, then clears so the
+          // moving footage dominates the peak.
+          .to("[data-eyebrow]", { opacity: 0, y: -8 }, 0.3)
+          .to("[data-headline]", { opacity: 0, y: -26, scale: 1.04 }, 0.32)
+          .to("[data-support]", { opacity: 0, y: -8 }, 0.34)
+          .to("[data-cta]", { opacity: 0, y: -8 }, 0.36)
+          .to("[data-tabs]", { opacity: 0, y: 8 }, 0.3)
           .to("[data-scrollcue]", { opacity: 0 }, 0.12)
-          .to("[data-vignette]", { opacity: 0.85 }, 0.45)
-          // Violet floor-ring glow rises as video reaches peak energy.
-          .fromTo(
-            "[data-floorglow]",
-            { opacity: 0, scaleX: 0.6 },
-            { opacity: 1, scaleX: 1, duration: 0.3, ease: "power2.out" },
-            0.5
-          )
-          .to("[data-floorglow]", { opacity: 0, duration: 0.2 }, 0.78)
-          .to("[data-handoff]", { opacity: 1 }, 0.82);
+          // Vignette deepens, floor glow eases off, handoff to next section.
+          .to("[data-vignette]", { opacity: 0.85 }, 0.7)
+          .to("[data-floorglow]", { opacity: 0, duration: 0.18 }, 0.85)
+          .to("[data-handoff]", { opacity: 1 }, 0.86);
 
-        // -------- Cursor spotlight --------
+        // -------- Cursor spotlight (quiet) --------
         if (hover && root.current) {
           const rootEl = root.current;
           const qX = gsap.quickTo("[data-cursorlight]", "x", { duration: 0.5, ease: "power3.out" });
@@ -245,8 +182,7 @@ export default function CinematicHero() {
             qY(e.clientY - rect.top);
             gsap.to("[data-cursorlight]", { opacity: 1, duration: 0.4, overwrite: "auto" });
           };
-          const onLeave = () =>
-            gsap.to("[data-cursorlight]", { opacity: 0, duration: 0.4 });
+          const onLeave = () => gsap.to("[data-cursorlight]", { opacity: 0, duration: 0.4 });
           rootEl.addEventListener("mousemove", onMove);
           rootEl.addEventListener("mouseleave", onLeave);
           cleanups.push(() => {
@@ -255,50 +191,48 @@ export default function CinematicHero() {
           });
         }
 
-        // -------- Magnetic CTA --------
+        // -------- Primary CTA hover: subtle violet pulse + floor glow lift --
         if (hover && cta.current) {
           const btn = cta.current;
-          const qX = gsap.quickTo(btn, "x", { duration: 0.35, ease: "power3.out" });
-          const qY = gsap.quickTo(btn, "y", { duration: 0.35, ease: "power3.out" });
-          const onCtaMove = (e: MouseEvent) => {
-            const rect = btn.getBoundingClientRect();
-            const x = e.clientX - (rect.left + rect.width / 2);
-            const y = e.clientY - (rect.top + rect.height / 2);
-            const dist = Math.hypot(x, y);
-            const radius = 140;
-            const cap = 12;
-            if (dist < radius) {
-              const f = 1 - dist / radius;
-              qX(Math.max(-cap, Math.min(cap, x * 0.3 * f)));
-              qY(Math.max(-cap, Math.min(cap, y * 0.3 * f)));
-            } else {
-              qX(0);
-              qY(0);
-            }
+          const glow = root.current?.querySelector<HTMLElement>("[data-ctaglow]") ?? null;
+          const onEnter = () => {
+            if (glow) gsap.to(glow, { opacity: 1, duration: 0.5, ease: "power2.out" });
+            gsap.to("[data-floorglow]", { opacity: "+=0.12", duration: 0.6, overwrite: "auto" });
+            gsap.to(btn, {
+              keyframes: [
+                { boxShadow: "0 0 0px rgba(122,76,255,0.0)" },
+                { boxShadow: "0 0 22px rgba(122,76,255,0.45)" },
+                { boxShadow: "0 0 12px rgba(122,76,255,0.22)" },
+              ],
+              duration: 0.9,
+              ease: "sine.inOut",
+            });
           };
-          window.addEventListener("mousemove", onCtaMove);
-          cleanups.push(() => window.removeEventListener("mousemove", onCtaMove));
+          const onLeave = () => {
+            if (glow) gsap.to(glow, { opacity: 0, duration: 0.5 });
+            gsap.to(btn, { boxShadow: "0 0 0px rgba(122,76,255,0.0)", duration: 0.5 });
+          };
+          btn.addEventListener("mouseenter", onEnter);
+          btn.addEventListener("mouseleave", onLeave);
+          cleanups.push(() => {
+            btn.removeEventListener("mouseenter", onEnter);
+            btn.removeEventListener("mouseleave", onLeave);
+          });
         }
       });
 
       // ===================== MOBILE =====================
-      // Mobile: let video autoplay (no scrub) — simpler reveal.
       mm.add("(max-width: 767px)", () => {
         if (video) {
-          // On mobile, autoplay so there's always motion.
           video.loop = true;
-          video.play().catch(() => {/* autoplay blocked — static poster is fine */});
+          video.play().catch(() => {/* autoplay blocked — poster is fine */});
         }
         if (reduce) return;
         gsap.from(
-          "[data-nav], [data-eyebrow], [data-headline], [data-subhead], [data-cta]",
-          { opacity: 0, y: 22, duration: 0.8, ease: "power3.out", stagger: 0.08 }
+          "[data-nav], [data-eyebrow], [data-line], [data-support], [data-cta] > *, [data-tab]",
+          { opacity: 0, y: 18, duration: 0.8, ease: "power3.out", stagger: 0.06 }
         );
-        const headlineEl = root.current?.querySelector<HTMLElement>("[data-headline]");
-        if (headlineEl) {
-          const stop = runScramble(headlineEl, { stagger: 12, cycles: 12, tick: 22 });
-          cleanups.push(stop);
-        }
+        gsap.fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.3, duration: 1 });
       });
     }, root);
 
@@ -311,7 +245,7 @@ export default function CinematicHero() {
   return (
     <section
       ref={root}
-      className="relative h-screen w-full overflow-hidden bg-[#050505] text-[#f2efe6]"
+      className="relative h-screen w-full overflow-hidden bg-[#050505] text-[#ece9f2]"
     >
       {/* ============ L0 — BACKGROUND VIDEO ============ */}
       <div data-bg className="absolute inset-0 z-0" style={{ willChange: "transform" }}>
@@ -320,66 +254,65 @@ export default function CinematicHero() {
           src={HERO_VIDEO_SRC}
           poster="/hero/poster.jpg"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ filter: "brightness(1.15) saturate(1.1)" }}
+          style={{ filter: "brightness(1.06) saturate(1.04) contrast(1.03)" }}
           muted
           playsInline
           preload="auto"
         />
-        {/* Violet wash */}
+        {/* Restrained violet wash — top corner only, no big gradient. */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(120% 80% at 18% 12%, rgba(124,108,255,0.12), transparent 55%)",
+              "radial-gradient(120% 80% at 15% 8%, rgba(122,76,255,0.10), transparent 52%)",
           }}
         />
       </div>
 
-      {/* Atmospheric particles — very subtle dust drifting over the video */}
+      {/* Atmospheric particles — subtle dust drifting over the video */}
       <div
-        className="hero-particles pointer-events-none absolute inset-0 z-[1] opacity-[0.5] mix-blend-screen"
+        data-particles
+        className="hero-particles pointer-events-none absolute inset-0 z-[1] opacity-[0.55] mix-blend-screen"
         style={{
           backgroundImage:
-            "radial-gradient(1.4px 1.4px at 20% 30%, rgba(255,255,255,0.45), transparent 60%), radial-gradient(1.2px 1.2px at 70% 60%, rgba(124,108,255,0.40), transparent 60%)",
+            "radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,0.5), transparent 60%), radial-gradient(1.3px 1.3px at 70% 60%, rgba(150,130,255,0.45), transparent 60%)",
           backgroundSize: "220px 220px, 300px 300px",
-          animation: "heroParticleDrift 26s linear infinite",
+          animation: "heroParticleDrift 24s linear infinite",
           willChange: "background-position",
         }}
       />
 
-      {/* Scan wave — a thin bright sweep that crosses the frame once during the
-          early activation phase (scroll progress ~0.15–0.35). Driven from the
-          ScrollTrigger onUpdate; hidden outside that window. */}
+      {/* Scan wave — thin bright sweep during activation (scroll 0.15–0.35) */}
       <div
         data-scanwave
         className="pointer-events-none absolute inset-x-0 top-0 z-[2] opacity-0 mix-blend-screen"
         style={{
-          height: "16%",
+          height: "14%",
           background:
-            "linear-gradient(180deg, transparent 0%, rgba(180,170,255,0.10) 45%, rgba(214,208,255,0.45) 50%, rgba(180,170,255,0.10) 55%, transparent 100%)",
+            "linear-gradient(180deg, transparent 0%, rgba(170,158,255,0.12) 44%, rgba(214,208,255,0.55) 50%, rgba(170,158,255,0.12) 56%, transparent 100%)",
           willChange: "transform, opacity",
         }}
       />
 
-      {/* Floor ring glow — appears during video peak energy phase */}
+      {/* Floor / ring glow — restrained violet, rises with scroll */}
       <div
         data-floorglow
         className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] opacity-0"
         style={{
-          height: "38%",
+          height: "34%",
           background:
-            "radial-gradient(ellipse 80% 40% at 50% 100%, rgba(122,76,255,0.38) 0%, transparent 70%)",
-          willChange: "transform, opacity",
+            "radial-gradient(ellipse 70% 38% at 50% 100%, rgba(122,76,255,0.42) 0%, rgba(122,76,255,0.10) 45%, transparent 72%)",
+          willChange: "opacity",
         }}
       />
 
       {/* Cursor spotlight */}
       <div
         data-cursorlight
-        className="pointer-events-none absolute left-0 top-0 z-[3] hidden h-[640px] w-[640px] -translate-x-1/2 -translate-y-1/2 mix-blend-screen md:block"
+        className="pointer-events-none absolute left-0 top-0 z-[3] hidden h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 mix-blend-screen md:block"
         style={{
           background:
-            "radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(124,108,255,0.10) 32%, transparent 62%)",
+            "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(122,76,255,0.08) 34%, transparent 62%)",
           willChange: "transform, opacity",
         }}
       />
@@ -387,7 +320,7 @@ export default function CinematicHero() {
       {/* Grain */}
       <div
         data-grain
-        className="pointer-events-none absolute inset-0 z-[4] opacity-[0.08] mix-blend-overlay"
+        className="pointer-events-none absolute inset-0 z-[4] opacity-[0.07] mix-blend-overlay"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")",
@@ -398,134 +331,146 @@ export default function CinematicHero() {
       {/* Vignette */}
       <div
         data-vignette
-        className="pointer-events-none absolute inset-0 z-[7] opacity-50"
+        className="pointer-events-none absolute inset-0 z-[7] opacity-60"
         style={{
           background:
-            "radial-gradient(130% 90% at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.92) 100%)",
+            "radial-gradient(130% 95% at 50% 45%, transparent 34%, rgba(0,0,0,0.6) 76%, rgba(0,0,0,0.94) 100%)",
         }}
       />
 
       {/* ============ LETTERBOX WINDOW ============ */}
-      <div
-        data-letterbox
-        className="absolute inset-0 z-[8]"
-        style={{ willChange: "clip-path" }}
-      >
-        {/* NAV */}
+      <div data-letterbox className="absolute inset-0 z-[8]" style={{ willChange: "clip-path" }}>
+        {/* ---- Top bar ---- */}
         <header className="absolute inset-x-0 top-0 z-[40] flex items-center justify-between px-6 py-6 md:px-10 md:py-8">
           <a
             href="#"
             data-nav
-            className="font-display text-[18px] tracking-[-0.02em] md:text-[20px]"
+            className="text-[16px] tracking-[0.18em] md:text-[17px]"
+            style={{ fontWeight: 600 }}
           >
             SMILEFIT
           </a>
           <nav
             data-nav
-            className="hidden items-center gap-7 text-[12px] uppercase tracking-[0.04em] md:flex"
+            className="hidden items-center gap-8 text-[11px] uppercase tracking-[0.24em] text-[#ece9f2]/70 md:flex"
             style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
-            <a href="#training" className="hover:opacity-60">Training</a>
-            <a href="#raume" className="hover:opacity-60">Räume</a>
-            <a href="#mitgliedschaft" className="hover:opacity-60">Mitgliedschaft</a>
-            <a href="#kontakt" className="hover:opacity-60">Kontakt</a>
+            <a href="#training" className="transition-opacity hover:opacity-100 hover:text-[#ece9f2]">Training</a>
+            <a href="#raume" className="transition-opacity hover:text-[#ece9f2]">Räume</a>
+            <a href="#mitgliedschaft" className="transition-opacity hover:text-[#ece9f2]">Mitgliedschaft</a>
+            <a href="#kontakt" className="transition-opacity hover:text-[#ece9f2]">Kontakt</a>
           </nav>
           <a
             href="#kontakt"
             data-nav
-            className="text-[12px] uppercase tracking-[0.06em] md:hidden"
+            className="text-[11px] uppercase tracking-[0.22em] text-[#ece9f2]/80 md:hidden"
             style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
             Menu
           </a>
         </header>
 
-        {/* UI BLOCK */}
-        <div className="absolute inset-x-0 bottom-0 z-[10] px-6 pb-12 md:px-10 md:pb-16">
-          <div className="flex items-end justify-between gap-10">
-            <div className="max-w-[820px]">
-              {/* Eyebrow */}
-              <div data-eyebrow className="mb-6 flex items-center gap-3">
-                <span
-                  data-eyebrow-rule
-                  className="block h-px w-12 bg-[#7a4cff]"
-                  style={{ transformOrigin: "left center" }}
-                />
-                <span
-                  data-eyebrow-text
-                  className="text-[11px] uppercase tracking-[0.32em] text-[#7a4cff]"
-                  style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600 }}
-                >
-                  Built Different.
-                </span>
-              </div>
-
-              {/* Headline */}
-              <h1
-                data-headline
-                data-fire
-                aria-label="Kein Standard. Kein Zufall."
-                className="hero-fire-text font-display block leading-[0.9] tracking-[-0.02em]"
-                style={{
-                  fontSize: "clamp(44px, 9vw, 150px)",
-                  textTransform: "uppercase",
-                  willChange: "transform, opacity, filter",
-                }}
-              >
-                {HERO_LINES.map((line, li) => (
-                  <span key={li} aria-hidden className="block whitespace-nowrap">
-                    {Array.from(line).map((ch, ci) => (
-                      <span key={ci} data-char data-final={ch} className="inline-block">
-                        {ch === " " ? " " : ch}
-                      </span>
-                    ))}
-                  </span>
-                ))}
-              </h1>
-
-              <p
-                data-subhead
-                className="mt-7 max-w-[380px] text-[13px] leading-[1.55] text-[#f2efe6]/75"
-                style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 400 }}
-              >
-                Premium Training. Maschinen. Atmosphäre. Fokus.
-              </p>
-
-              <div data-cta className="mt-7">
-                <a
-                  ref={cta}
-                  href="#kontakt"
-                  className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#f2efe6]/85 px-5 py-3 text-[11px] uppercase tracking-[0.22em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
-                  style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600, willChange: "transform" }}
-                >
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 translate-y-full bg-[#f2efe6] transition-transform duration-500 ease-out group-hover:translate-y-0"
-                  />
-                  <span className="relative transition-colors duration-500 group-hover:text-[#050505]">
-                    Probetraining sichern
-                  </span>
-                  <span
-                    aria-hidden
-                    className="relative transition-[transform,color] duration-500 group-hover:translate-x-1 group-hover:text-[#050505]"
-                  >
-                    →
-                  </span>
-                </a>
-              </div>
-            </div>
-
-            {/* Scroll cue */}
-            <div
-              data-scrollcue
-              className="hidden flex-col items-end gap-3 text-[#f2efe6]/70 md:flex"
+        {/* ---- Centered editorial block ---- */}
+        <div className="absolute inset-0 z-[10] flex flex-col items-center justify-center px-6 text-center">
+          {/* Eyebrow */}
+          <div data-eyebrow className="mb-7 flex items-center gap-4">
+            <span className="block h-px w-8 bg-[#7a4cff]/70" />
+            <span
+              className="text-[11px] uppercase tracking-[0.42em] text-[#ece9f2]/75"
               style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
             >
-              <span className="text-[11px] uppercase tracking-[0.28em]">Scroll</span>
-              <span className="relative block h-14 w-px overflow-hidden bg-[#f2efe6]/15">
-                <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#f2efe6]" />
+              SMILEFIT · PREMIUM FITNESS
+            </span>
+            <span className="block h-px w-8 bg-[#7a4cff]/70" />
+          </div>
+
+          {/* Headline */}
+          <h1
+            data-headline
+            className="font-serif-editorial"
+            style={{
+              fontSize: "clamp(48px, 8.5vw, 132px)",
+              willChange: "transform, opacity",
+            }}
+          >
+            <span data-line className="block" style={{ fontWeight: 400 }}>
+              Stärker werden.
+            </span>
+            <span data-line className="block italic" style={{ fontWeight: 400 }}>
+              Besser fühlen.
+            </span>
+          </h1>
+
+          {/* Supporting line */}
+          <p
+            data-support
+            className="mt-8 text-[13px] uppercase tracking-[0.34em] text-[#ece9f2]/70"
+            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
+          >
+            Kraft. Energie. Selbstvertrauen.
+          </p>
+
+          {/* CTAs */}
+          <div data-cta className="mt-11 flex flex-col items-center gap-4 sm:flex-row">
+            <a
+              ref={cta}
+              href="#kontakt"
+              className="group relative inline-flex items-center gap-3 overflow-hidden border border-[#7a4cff]/70 px-7 py-3.5 text-[11px] uppercase tracking-[0.26em] text-[#ece9f2] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a4cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
+              style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600 }}
+            >
+              {/* hover wash + glow */}
+              <span
+                data-ctaglow
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-0"
+                style={{ background: "radial-gradient(120% 120% at 50% 120%, rgba(122,76,255,0.28), transparent 70%)" }}
+              />
+              <span className="relative">Probetraining reservieren</span>
+              <span aria-hidden className="relative transition-transform duration-500 group-hover:translate-x-1">→</span>
+            </a>
+            <a
+              href="#mitgliedschaft"
+              className="inline-flex items-center text-[11px] uppercase tracking-[0.26em] text-[#ece9f2]/65 underline-offset-[6px] transition-colors hover:text-[#ece9f2] hover:underline"
+              style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 600 }}
+            >
+              Mitglied werden
+            </a>
+          </div>
+        </div>
+
+        {/* ---- Bottom tabs + scroll cue ---- */}
+        <div className="absolute inset-x-0 bottom-0 z-[10] flex items-end justify-between gap-6 px-6 pb-8 md:px-10 md:pb-10">
+          <div
+            data-tabs
+            className="flex flex-wrap items-center gap-x-7 gap-y-2"
+            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
+          >
+            {TABS.map((tab, i) => (
+              <span
+                key={tab}
+                data-tab
+                className={`text-[10px] uppercase tracking-[0.3em] ${
+                  i === 0 ? "text-[#ece9f2]" : "text-[#ece9f2]/45"
+                }`}
+              >
+                {i === 0 && (
+                  <span className="mr-2 inline-block h-[6px] w-[6px] -translate-y-px rounded-full bg-[#7a4cff] align-middle" />
+                )}
+                {tab}
               </span>
-            </div>
+            ))}
+          </div>
+
+          {/* Scroll cue */}
+          <div
+            data-scrollcue
+            className="hidden flex-col items-center gap-2 text-[#ece9f2]/60 md:flex"
+            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
+          >
+            <span className="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
+            <span className="relative block h-12 w-px overflow-hidden bg-[#ece9f2]/15">
+              <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#ece9f2]" />
+            </span>
           </div>
         </div>
       </div>
