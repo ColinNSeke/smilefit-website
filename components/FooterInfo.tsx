@@ -15,14 +15,49 @@ export default function FooterInfo() {
         gsap.set("[data-fi], [data-bigmark]", { opacity: 1, y: 0, clipPath: "inset(0% 0%)" });
         return;
       }
+      // Background darkening overlay reveal
+      gsap.fromTo(
+        "[data-footer-darken]",
+        { opacity: 0 },
+        {
+          opacity: 1,
+          duration: 1.6,
+          ease: "power2.out",
+          scrollTrigger: { trigger: root.current, start: "top 75%" },
+        }
+      );
+
       gsap.from("[data-fi]", {
-        y: 26,
+        y: 30,
         opacity: 0,
-        duration: 0.9,
+        duration: 1.0,
         ease: "power3.out",
-        stagger: 0.08,
+        stagger: 0.09,
         scrollTrigger: { trigger: root.current, start: "top 78%" },
       });
+
+      // Cinematic headline reveal — big blur + scale
+      gsap.fromTo(
+        "[data-footer-headline]",
+        { opacity: 0, scale: 1.14, filter: "blur(18px)", y: 30 },
+        {
+          opacity: 1,
+          scale: 1,
+          filter: "blur(0px)",
+          y: 0,
+          duration: 1.4,
+          ease: "expo.out",
+          scrollTrigger: { trigger: "[data-footer-headline]", start: "top 84%" },
+          onComplete: () => {
+            gsap.fromTo(
+              "[data-footer-headline]",
+              { textShadow: "0 0 0px rgba(122,76,255,0)" },
+              { textShadow: "0 0 60px rgba(122,76,255,0.30)", duration: 1.2, ease: "power2.out" }
+            );
+          },
+        }
+      );
+
       gsap.fromTo(
         "[data-bigmark]",
         { clipPath: "inset(0% 0% 100% 0%)" },
@@ -34,30 +69,36 @@ export default function FooterInfo() {
         }
       );
 
-      // Footer headline glow
-      gsap.fromTo(
-        "[data-footer-headline]",
-        { textShadow: "0 0 0px rgba(122,76,255,0)" },
-        {
-          textShadow: "0 0 60px rgba(122,76,255,0.18)",
-          duration: 1.4,
-          ease: "power2.out",
-          scrollTrigger: { trigger: "[data-footer-headline]", start: "top 80%" },
-        }
-      );
-
-      // CTA button glow on hover
-      if (window.matchMedia("(hover: hover)").matches) {
-        const ctaBtn = root.current?.querySelector<HTMLElement>("[data-footer-cta]");
-        if (ctaBtn) {
-          const onEnter = () => gsap.to(ctaBtn, { boxShadow: "0 0 28px rgba(122,76,255,0.35)", duration: 0.4, ease: "power2.out" });
-          const onLeave = () => gsap.to(ctaBtn, { boxShadow: "0 0 0px rgba(122,76,255,0)", duration: 0.5 });
+      // CTA button: subtle pulsing glow + stronger glow on hover
+      const ctaBtn = root.current?.querySelector<HTMLElement>("[data-footer-cta]");
+      if (ctaBtn) {
+        const pulse = gsap.to(ctaBtn, {
+          boxShadow: "0 0 26px rgba(122,76,255,0.40)",
+          duration: 1.8,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        });
+        if (window.matchMedia("(hover: hover)").matches) {
+          const onEnter = () => {
+            pulse.pause();
+            gsap.to(ctaBtn, { boxShadow: "0 0 42px rgba(122,76,255,0.65)", duration: 0.4, ease: "power2.out" });
+          };
+          const onLeave = () => {
+            gsap.to(ctaBtn, { boxShadow: "0 0 18px rgba(122,76,255,0.30)", duration: 0.5, onComplete: () => pulse.play() });
+          };
           ctaBtn.addEventListener("mouseenter", onEnter);
           ctaBtn.addEventListener("mouseleave", onLeave);
         }
       }
     }, root);
-    return () => ctx.revert();
+
+    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+    return () => {
+      window.clearTimeout(refreshT);
+      ctx.revert();
+    };
   }, []);
 
   return (
@@ -66,6 +107,13 @@ export default function FooterInfo() {
       id="kontakt"
       className="relative w-full overflow-hidden bg-[#050308] pt-24 text-[#f4f1f7] md:pt-32"
     >
+      {/* Background darkening overlay for cinematic close */}
+      <div
+        data-footer-darken
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-0"
+        style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 40%)", willChange: "opacity" }}
+      />
       <div
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{ background: "radial-gradient(60% 50% at 50% 100%, rgba(95,48,195,0.12) 0%, transparent 60%)" }}
@@ -101,7 +149,6 @@ export default function FooterInfo() {
               KONTAKT · STUTTGART
             </p>
             <h2
-              data-fi
               data-footer-headline
               className="font-serif-editorial"
               style={{ fontSize: "clamp(32px, 4.6vw, 68px)", lineHeight: 1.02, fontWeight: 300, color: "#efeaf6", willChange: "text-shadow" }}

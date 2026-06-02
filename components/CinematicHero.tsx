@@ -30,15 +30,26 @@ export default function CinematicHero() {
       intro
         .from("[data-brandmark]", { y: -14, opacity: 0, duration: 0.9 }, 0)
         .from("[data-navitem]", { y: -12, opacity: 0, duration: 0.8, stagger: 0.06 }, 0.05)
-        .from("[data-eyebrow]", { y: 12, opacity: 0, duration: 0.9 }, 0.5)
-        // Big headline — masked line-by-line clip reveal + blur-to-sharp.
-        .to("[data-line]", { clipPath: "inset(0% 0% 0% 0%)", duration: 1.2, ease: "expo.out", stagger: 0.16 }, 0.75)
-        .from("[data-line]", { yPercent: 116, filter: "blur(12px)", duration: 1.2, ease: "expo.out", stagger: 0.16 }, 0.75)
+        // Purple glow blooms behind the headline
+        .fromTo(
+          "[data-textglow]",
+          { opacity: 0, scale: 0.55 },
+          { opacity: 1, scale: 1, duration: 1.7, ease: "power2.out" },
+          0.35
+        )
+        .from("[data-eyebrow]", { y: 16, opacity: 0, duration: 0.9 }, 0.5)
+        // Big headline — masked line-by-line: clip reveal + heavy blur + scale + upward thrust.
+        .to("[data-line]", { clipPath: "inset(0% 0% 0% 0%)", duration: 1.3, ease: "expo.out", stagger: 0.18 }, 0.7)
+        .from(
+          "[data-line]",
+          { yPercent: 130, scale: 1.16, filter: "blur(22px)", duration: 1.3, ease: "expo.out", stagger: 0.18 },
+          0.7
+        )
         .set("[data-line]", { clearProps: "filter" })
-        .from("[data-cta] > *", { y: 14, opacity: 0, duration: 0.85, stagger: 0.1 }, 1.45)
-        .from("[data-scrollcue]", { opacity: 0, duration: 0.8 }, 1.7)
-        // Energy burst breathes up to resting brightness.
-        .fromTo("[data-burst]", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 1.8, ease: "power2.out" }, 0.1);
+        .from("[data-cta] > *", { x: -40, opacity: 0, duration: 0.95, ease: "power3.out", stagger: 0.12 }, 1.55)
+        .from("[data-scrollcue]", { opacity: 0, duration: 0.8 }, 1.85)
+        // Energy burst scales in slowly from oversized to resting.
+        .fromTo("[data-burst]", { opacity: 0, scale: 1.18 }, { opacity: 1, scale: 1, duration: 2.2, ease: "power2.out" }, 0);
 
       // ---- Scroll: heavy parallax on the object + handoff ----
       const tl = gsap.timeline({
@@ -111,7 +122,15 @@ export default function CinematicHero() {
       }
     }, root);
 
+    // Recalculate trigger positions once fonts/images settle.
+    const onLoad = () => ScrollTrigger.refresh();
+    window.addEventListener("load", onLoad);
+    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+
     return () => {
+      window.removeEventListener("load", onLoad);
+      window.clearTimeout(refreshT);
       cleanups.forEach((c) => c());
       ctx.revert();
     };
@@ -255,9 +274,21 @@ export default function CinematicHero() {
           ONE MORE TIME.
         </p>
 
+        {/* Purple glow bloom behind the headline */}
+        <div
+          data-textglow
+          aria-hidden
+          className="pointer-events-none absolute left-0 top-1/2 z-[-1] h-[60vh] w-[60vh] -translate-y-1/2"
+          style={{
+            background: "radial-gradient(circle, rgba(122,76,255,0.42) 0%, rgba(95,48,195,0.18) 35%, transparent 68%)",
+            filter: "blur(20px)",
+            willChange: "transform, opacity",
+          }}
+        />
+
         {/* Headline */}
         <h1
-          className="font-display"
+          className="font-display relative"
           style={{
             fontSize: "clamp(48px, 8.0vw, 118px)",
             lineHeight: 0.9,

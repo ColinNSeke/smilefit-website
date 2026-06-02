@@ -19,26 +19,71 @@ export default function ManifestoSection() {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const ctx = gsap.context(() => {
       if (reduce) {
-        gsap.set("[data-line], [data-pillar], [data-mfimg]", { opacity: 1, clipPath: "inset(0% 0%)", y: 0 });
+        gsap.set("[data-line], [data-pillar], [data-mfimg], [data-stat], [data-statval]", {
+          opacity: 1,
+          clipPath: "inset(0% 0%)",
+          y: 0,
+        });
+        gsap.utils.toArray<HTMLElement>("[data-statval]").forEach((el) => {
+          el.textContent = (el.dataset.target ?? "") + (el.dataset.suffix ?? "");
+        });
         return;
       }
+
+      // Section gradient reveal — dark-to-purple sweep
+      gsap.fromTo(
+        "[data-grad-reveal]",
+        { opacity: 0 },
+        {
+          opacity: 1,
+          duration: 1.4,
+          ease: "power2.out",
+          scrollTrigger: { trigger: root.current, start: "top 70%" },
+        }
+      );
 
       gsap.set("[data-line]", { clipPath: "inset(0% 0% 100% 0%)" });
       gsap.to("[data-line]", {
         clipPath: "inset(0% 0% 0% 0%)",
-        duration: 1.2,
+        duration: 1.3,
         ease: "expo.out",
-        stagger: 0.14,
-        scrollTrigger: { trigger: "[data-statement]", start: "top 76%" },
+        stagger: 0.16,
+        scrollTrigger: { trigger: "[data-statement]", start: "top 78%" },
       });
       gsap.from("[data-line]", {
-        yPercent: 110,
-        filter: "blur(10px)",
-        duration: 1.2,
+        yPercent: 120,
+        scale: 1.12,
+        filter: "blur(16px)",
+        duration: 1.3,
         ease: "expo.out",
-        stagger: 0.14,
-        scrollTrigger: { trigger: "[data-statement]", start: "top 76%" },
+        stagger: 0.16,
+        scrollTrigger: { trigger: "[data-statement]", start: "top 78%" },
         onComplete: () => gsap.set("[data-line]", { clearProps: "filter" }),
+      });
+
+      // Stats count-up
+      gsap.utils.toArray<HTMLElement>("[data-statval]").forEach((el) => {
+        const target = parseFloat(el.dataset.target ?? "0");
+        const suffix = el.dataset.suffix ?? "";
+        const obj = { v: 0 };
+        gsap.to(obj, {
+          v: target,
+          duration: 1.8,
+          ease: "power2.out",
+          scrollTrigger: { trigger: "[data-stats]", start: "top 82%" },
+          onUpdate: () => {
+            const val = target % 1 === 0 ? Math.round(obj.v) : obj.v.toFixed(1);
+            el.textContent = `${val}${suffix}`;
+          },
+        });
+      });
+      gsap.from("[data-stat]", {
+        y: 40,
+        opacity: 0,
+        duration: 1.0,
+        ease: "power3.out",
+        stagger: 0.12,
+        scrollTrigger: { trigger: "[data-stats]", start: "top 82%" },
       });
 
       gsap.from("[data-pillar]", {
@@ -86,7 +131,12 @@ export default function ManifestoSection() {
       });
     }, root);
 
-    return () => ctx.revert();
+    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+    return () => {
+      window.clearTimeout(refreshT);
+      ctx.revert();
+    };
   }, []);
 
   return (
@@ -98,6 +148,16 @@ export default function ManifestoSection() {
       <div
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{ background: "radial-gradient(50% 50% at 80% 10%, rgba(95,48,195,0.10) 0%, transparent 60%)" }}
+      />
+      {/* Dark-to-purple gradient reveal */}
+      <div
+        data-grad-reveal
+        className="pointer-events-none absolute inset-0 opacity-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(95,48,195,0.14) 0%, transparent 30%, transparent 70%, rgba(95,48,195,0.10) 100%)",
+          willChange: "opacity",
+        }}
       />
 
       <div className="relative mx-auto max-w-[1320px] px-6 md:px-12">
@@ -215,6 +275,55 @@ export default function ManifestoSection() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ===== Results / stats band (count-up) ===== */}
+        <div
+          data-stats
+          className="mt-20 grid grid-cols-2 gap-px overflow-hidden border md:mt-28 md:grid-cols-4"
+          style={{ borderColor: "rgba(244,241,247,0.10)", background: "rgba(244,241,247,0.06)" }}
+        >
+          {[
+            { target: "2200", suffix: "m²", label: "Trainingsfläche" },
+            { target: "24", suffix: "/7", label: "Premium Zugang" },
+            { target: "40", suffix: "+", label: "Geräte & Stationen" },
+            { target: "100", suffix: "%", label: "Trainerbetreuung" },
+          ].map((s) => (
+            <div
+              key={s.label}
+              data-stat
+              className="flex flex-col items-start justify-center bg-[#07060b] p-7 md:p-9"
+            >
+              <span
+                data-statval
+                data-target={s.target}
+                data-suffix={s.suffix}
+                className="font-display"
+                style={{
+                  fontSize: "clamp(34px, 4.4vw, 62px)",
+                  lineHeight: 1,
+                  letterSpacing: "-0.02em",
+                  color: "#f7f4fb",
+                  textShadow: "0 0 30px rgba(122,76,255,0.25)",
+                }}
+              >
+                0{s.suffix}
+              </span>
+              <span
+                className="mt-3"
+                style={{
+                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                  fontSize: "11px",
+                  letterSpacing: "0.22em",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  color: "rgba(244,241,247,0.52)",
+                }}
+              >
+                {s.label}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </section>

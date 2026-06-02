@@ -93,21 +93,26 @@ export default function PricingSection() {
         gsap.set("[data-card], [data-phead]", { opacity: 1, y: 0 });
         return;
       }
-      gsap.from("[data-phead]", {
-        y: 30,
-        opacity: 0,
-        duration: 1.0,
+      gsap.set("[data-phead]", { opacity: 0, y: 36, filter: "blur(8px)" });
+      gsap.to("[data-phead]", {
+        y: 0,
+        opacity: 1,
+        filter: "blur(0px)",
+        duration: 1.1,
         ease: "power3.out",
-        stagger: 0.1,
-        scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 80%" },
+        stagger: 0.12,
+        scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 82%" },
       });
-      gsap.from("[data-card]", {
-        y: 54,
-        opacity: 0,
-        duration: 1.0,
+      // Cards rise in stagger with scale + depth
+      gsap.set("[data-card]", { opacity: 0, y: 90, scale: 0.9, transformOrigin: "center bottom" });
+      gsap.to("[data-card]", {
+        y: 0,
+        opacity: 1,
+        scale: 1,
+        duration: 1.15,
         ease: "power3.out",
-        stagger: 0.13,
-        scrollTrigger: { trigger: "[data-cards]", start: "top 82%" },
+        stagger: 0.16,
+        scrollTrigger: { trigger: "[data-cards]", start: "top 84%" },
       });
 
       // Hover depth + magnetic CTA on pointer devices
@@ -139,10 +144,23 @@ export default function PricingSection() {
         if (aura) {
           gsap.to(aura, { rotation: 360, duration: 8, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
         }
+        // Pulsing violet glow on the card itself (box-shadow isn't clipped)
+        gsap.to(featuredCard, {
+          boxShadow: "0 30px 90px -30px rgba(122,76,255,0.85), 0 0 50px -10px rgba(122,76,255,0.45)",
+          duration: 2.4,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+        });
       }
     }, root);
 
-    return () => ctx.revert();
+    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+    return () => {
+      window.clearTimeout(refreshT);
+      ctx.revert();
+    };
   }, []);
 
   return (
@@ -200,12 +218,13 @@ export default function PricingSection() {
             >
               {plan.featured && (
                 <>
+                  {/* Rotating conic aura */}
                   <div
                     data-aura
                     aria-hidden
-                    className="pointer-events-none absolute -inset-[60%] opacity-[0.07]"
+                    className="pointer-events-none absolute -inset-[55%] opacity-[0.20]"
                     style={{
-                      background: "conic-gradient(from 0deg, transparent 0%, rgba(122,76,255,1) 20%, transparent 40%, rgba(180,130,255,0.8) 60%, transparent 80%)",
+                      background: "conic-gradient(from 0deg, transparent 0%, rgba(122,76,255,1) 18%, transparent 38%, rgba(180,130,255,0.9) 60%, transparent 82%)",
                       borderRadius: "50%",
                       willChange: "transform",
                     }}

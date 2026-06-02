@@ -51,68 +51,99 @@ export default function RaumeSection() {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const ctx = gsap.context(() => {
       if (reduce) {
-        gsap.set("[data-tile], [data-head]", { opacity: 1, clipPath: "inset(0% 0%)" });
+        gsap.set("[data-tile], [data-head], [data-tileimg], [data-tilelabel], [data-veil]", {
+          opacity: 1,
+          clipPath: "inset(0% 0%)",
+          scale: 1,
+          y: 0,
+        });
+        gsap.set("[data-veil]", { opacity: 0 });
         return;
       }
 
-      // Heading reveal
-      gsap.from("[data-head]", {
-        y: 40,
-        opacity: 0,
-        duration: 1.0,
+      // Heading reveal — strong upward + blur-to-sharp
+      gsap.set("[data-head]", { opacity: 0, y: 52, filter: "blur(8px)" });
+      gsap.to("[data-head]", {
+        y: 0,
+        opacity: 1,
+        filter: "blur(0px)",
+        duration: 1.1,
         ease: "power3.out",
-        stagger: 0.12,
-        scrollTrigger: { trigger: "[data-headwrap]", start: "top 78%" },
+        stagger: 0.14,
+        scrollTrigger: { trigger: "[data-headwrap]", start: "top 82%" },
       });
 
-      // Staggered clip-path tile reveals
-      gsap.utils.toArray<HTMLElement>("[data-tile]").forEach((tile, i) => {
+      // Staggered tile mask-wipe reveals — images "open from darkness"
+      gsap.utils.toArray<HTMLElement>("[data-tile]").forEach((tile) => {
         const img = tile.querySelector<HTMLElement>("[data-tileimg]");
-        gsap.fromTo(
+        const veil = tile.querySelector<HTMLElement>("[data-veil]");
+        const label = tile.querySelector<HTMLElement>("[data-tilelabel]");
+
+        const tl = gsap.timeline({ scrollTrigger: { trigger: tile, start: "top 88%" } });
+        tl.fromTo(
           tile,
           { clipPath: "inset(0% 0% 100% 0%)" },
-          {
-            clipPath: "inset(0% 0% 0% 0%)",
-            duration: 1.1,
-            ease: "expo.out",
-            scrollTrigger: { trigger: tile, start: "top 86%" },
-          }
+          { clipPath: "inset(0% 0% 0% 0%)", duration: 1.2, ease: "expo.out" },
+          0
         );
+        if (img) tl.fromTo(img, { scale: 1.45 }, { scale: 1.0, duration: 1.5, ease: "expo.out" }, 0);
+        if (veil) tl.fromTo(veil, { opacity: 1 }, { opacity: 0, duration: 1.3, ease: "power2.out" }, 0.1);
+        if (label) tl.from(label, { y: 26, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.5);
+
         if (img) {
-          gsap.fromTo(
-            img,
-            { scale: 1.25 },
-            {
-              scale: 1.0,
-              duration: 1.4,
-              ease: "expo.out",
-              scrollTrigger: { trigger: tile, start: "top 86%" },
-            }
-          );
-          // Parallax drift while scrolling through
           gsap.to(img, {
-            yPercent: 12,
+            yPercent: 16,
             ease: "none",
             scrollTrigger: { trigger: tile, start: "top bottom", end: "bottom top", scrub: true },
           });
         }
       });
 
+      // 3D tilt + image drift on hover (pointer devices)
+      if (window.matchMedia("(hover: hover)").matches) {
+        gsap.utils.toArray<HTMLElement>("[data-tile]").forEach((tile) => {
+          const img = tile.querySelector<HTMLElement>("[data-tileimg]");
+          const qrx = gsap.quickTo(tile, "rotateX", { duration: 0.5, ease: "power2.out" });
+          const qry = gsap.quickTo(tile, "rotateY", { duration: 0.5, ease: "power2.out" });
+          gsap.set(tile, { transformPerspective: 900, transformOrigin: "center" });
+          const onMove = (e: MouseEvent) => {
+            const r = tile.getBoundingClientRect();
+            const nx = (e.clientX - r.left) / r.width - 0.5;
+            const ny = (e.clientY - r.top) / r.height - 0.5;
+            qry(nx * 9);
+            qrx(ny * -9);
+            if (img) gsap.to(img, { x: nx * -18, y: ny * -18, duration: 0.5, ease: "power2.out" });
+          };
+          const onLeave = () => {
+            qrx(0);
+            qry(0);
+            if (img) gsap.to(img, { x: 0, y: 0, duration: 0.6, ease: "power2.out" });
+          };
+          tile.addEventListener("mousemove", onMove);
+          tile.addEventListener("mouseleave", onLeave);
+        });
+      }
+
       // Video interlude — scale-in reveal
       gsap.fromTo(
         "[data-interlude]",
-        { clipPath: "inset(12% 8% round 0px)", opacity: 0.6 },
+        { clipPath: "inset(14% 10% round 0px)", opacity: 0.5 },
         {
           clipPath: "inset(0% 0% round 0px)",
           opacity: 1,
-          duration: 1.3,
+          duration: 1.4,
           ease: "power3.inOut",
-          scrollTrigger: { trigger: "[data-interlude]", start: "top 80%" },
+          scrollTrigger: { trigger: "[data-interlude]", start: "top 82%" },
         }
       );
     }, root);
 
-    return () => ctx.revert();
+    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+    return () => {
+      window.clearTimeout(refreshT);
+      ctx.revert();
+    };
   }, []);
 
   return (
@@ -185,8 +216,14 @@ export default function RaumeSection() {
             >
               <div
                 data-tileimg
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out group-hover:scale-[1.06]"
+                className="absolute inset-[-8%] bg-cover bg-center"
                 style={{ backgroundImage: `url('${t.src}')`, willChange: "transform" }}
+              />
+              {/* Darkness veil that lifts on reveal */}
+              <div
+                data-veil
+                className="pointer-events-none absolute inset-0 bg-[#050308]"
+                style={{ willChange: "opacity" }}
               />
               {/* Legibility grade */}
               <div
@@ -202,7 +239,7 @@ export default function RaumeSection() {
                 style={{ boxShadow: "inset 0 0 0 1px rgba(122,76,255,0.5)" }}
               />
               {/* Label */}
-              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6">
+              <div data-tilelabel className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6">
                 <div>
                   <p
                     className="mb-1"
