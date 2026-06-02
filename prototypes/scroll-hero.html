@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="de" style="background:#050507">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SMILEFIT — Stärke mit Stil</title>
+<style>
+/* ================================================================
+   SMILEFIT — Scroll-Driven Cinematic Hero Prototype
+   Video is the visual truth. UI stays clean, minimal, premium.
+   ================================================================ */
+:root {
+  --violet:      #6a4cff;
+  --violet-soft: #8a74ff;
+  --violet-dim:  #7a64d8;
+  --cream:       #f2efe6;
+  --void:        #050507;
+  --font-display: "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body:    "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { background: var(--void); scroll-behavior: auto; }
+body { background: var(--void); color: var(--cream); font-family: var(--font-body); overflow-x: hidden; }
+
+/* ---- SCROLL DRIVER ---- */
+#scroll-driver { height: 600vh; position: relative; }
+
+/* ---- PINNED STAGE (fixed during scroll sequence) ---- */
+#stage {
+  position: fixed; inset: 0; z-index: 1;
+  overflow: hidden; background: var(--void);
+}
+
+/* ---- VIDEO ---- */
+#hero-video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  will-change: transform;
+  /* slight scale room for any parallax shift */
+  transform: scale(1.03);
+}
+
+/* ---- OVERLAY LAYERS (stacked above video) ---- */
+
+/* L1: Permanent left-side gradient for text legibility */
+#grad-left {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    rgba(5,5,7,0.82) 0%,
+    rgba(5,5,7,0.55) 28%,
+    rgba(5,5,7,0.18) 52%,
+    transparent 72%
+  );
+}
+
+/* L2: Top/bottom edge vignette */
+#vignette {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(5,5,7,0.55) 0%, transparent 18%, transparent 72%, rgba(5,5,7,0.72) 100%);
+  transition: opacity 0.5s ease;
+}
+
+/* L3: Violet floor ring glow (CSS-driven by JS class) */
+#floor-ring {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  z-index: 4; pointer-events: none;
+  width: 140%; max-width: 1800px;
+  height: 320px;
+  background: radial-gradient(ellipse 55% 100% at 50% 100%,
+    rgba(106,76,255,0) 0%,
+    rgba(106,76,255,0) 50%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  will-change: opacity;
+}
+
+/* L4: Scan wave (vertical line that sweeps bottom→top) */
+#scan-wave {
+  position: absolute; left: 0; right: 0; z-index: 5; pointer-events: none;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(138,116,255,0.6) 20%, rgba(138,116,255,0.9) 50%, rgba(138,116,255,0.6) 80%, transparent 100%);
+  box-shadow: 0 0 18px 4px rgba(138,116,255,0.28);
+  opacity: 0;
+  bottom: 0;
+  will-change: transform, opacity;
+}
+
+/* L5: Canvas for particles (sits above video, below UI) */
+#particle-canvas {
+  position: absolute; inset: 0; z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+/* ================================================================
+   UI LAYER (z-index 10+) — minimal, premium, clean
+   ================================================================ */
+#ui {
+  position: absolute; inset: 0; z-index: 10;
+  pointer-events: none;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 32px 40px 42px;
+}
+
+/* NAV */
+#nav {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  opacity: 0; transform: translateY(-10px);
+  transition: opacity 0.9s ease, transform 0.9s ease;
+}
+#nav.show { opacity: 1; transform: translateY(0); }
+.brand {
+  font-family: var(--font-display);
+  font-size: 15px; font-weight: 900;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--cream);
+}
+.nav-links {
+  display: flex; gap: 28px;
+  font-size: 10.5px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: rgba(242,239,230,0.55); font-weight: 500;
+}
+.nav-links a { color: inherit; text-decoration: none; pointer-events: auto; transition: color 0.3s ease; }
+.nav-links a:hover { color: var(--cream); }
+
+/* EYEBROW */
+.eyebrow {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 18px;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.8s ease 0.12s, transform 0.8s ease 0.12s;
+}
+.eyebrow.show { opacity: 1; transform: translateY(0); }
+.eyebrow-rule { display: block; width: 36px; height: 1px; background: var(--violet-soft); flex-shrink: 0; }
+.eyebrow-text {
+  font-size: 9.5px; letter-spacing: 0.36em; text-transform: uppercase;
+  color: var(--violet-soft); font-weight: 600;
+}
+
+/* HEADLINE BLOCK */
+.headline-block {
+  max-width: 680px;
+}
+.headline {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 7.5vw, 120px);
+  font-weight: 900; line-height: 0.88;
+  letter-spacing: -0.03em; text-transform: uppercase;
+  color: var(--cream);
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 1s ease 0.06s, transform 1s ease 0.06s;
+}
+.headline.show { opacity: 1; transform: translateY(0); }
+
+.subline {
+  margin-top: 18px;
+  font-size: clamp(12px, 1.4vw, 16px);
+  font-weight: 400; line-height: 1.55;
+  letter-spacing: 0.02em;
+  color: rgba(242,239,230,0.65);
+  max-width: 360px;
+  opacity: 0; transform: translateY(12px);
+  transition: opacity 0.9s ease 0.22s, transform 0.9s ease 0.22s;
+}
+.subline.show { opacity: 1; transform: translateY(0); }
+
+/* CTAs */
+.cta-row {
+  display: flex; align-items: center; gap: 16px;
+  margin-top: 32px;
+  opacity: 0; transform: translateY(10px);
+  transition: opacity 0.9s ease 0.35s, transform 0.9s ease 0.35s;
+  pointer-events: auto;
+}
+.cta-row.show { opacity: 1; transform: translateY(0); }
+
+.cta-primary {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--cream); color: var(--void);
+  padding: 13px 26px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase;
+  text-decoration: none; border: none; cursor: pointer;
+  position: relative; overflow: hidden;
+  transition: background 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
+}
+.cta-primary:hover { background: var(--violet-soft); color: #fff; box-shadow: 0 0 28px rgba(106,76,255,0.4); }
+/* Activation pulse ring */
+.cta-primary::after {
+  content: ""; position: absolute; inset: -2px; border: 1px solid var(--violet-soft);
+  opacity: 0; transform: scale(1); transition: none;
+}
+.cta-primary.pulse::after {
+  animation: ctaPulse 0.55s ease-out forwards;
+}
+@keyframes ctaPulse {
+  0%  { opacity: 0.9; transform: scale(1); }
+  100%{ opacity: 0; transform: scale(1.08); }
+}
+
+.cta-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 10.5px; font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase;
+  color: rgba(242,239,230,0.6); text-decoration: none; cursor: pointer;
+  border-bottom: 1px solid rgba(242,239,230,0.2);
+  padding-bottom: 2px;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.cta-secondary:hover { color: var(--cream); border-color: rgba(242,239,230,0.5); }
+.arrow { transition: transform 0.3s ease; display: inline-block; }
+.cta-secondary:hover .arrow { transform: translateX(4px); }
+
+/* BOTTOM BAR */
+#bottom-bar {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  opacity: 0; transition: opacity 0.9s ease;
+}
+#bottom-bar.show { opacity: 1; }
+
+/* Scroll cue */
+.scroll-cue {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  font-size: 9px; letter-spacing: 0.36em; text-transform: uppercase;
+  color: rgba(242,239,230,0.35);
+}
+.cue-track { width: 1px; height: 48px; background: rgba(242,239,230,0.1); overflow: hidden; position: relative; }
+.cue-fill  { position: absolute; top: 0; left: 0; right: 0; height: 35%; background: var(--violet-soft); animation: cueRun 2.6s cubic-bezier(.65,0,.35,1) infinite; }
+@keyframes cueRun { 0%{transform:translateY(-100%);opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{transform:translateY(220%);opacity:0} }
+
+/* Progress rail — right edge */
+#progress-rail {
+  position: fixed; right: 0; top: 0; bottom: 0; z-index: 12;
+  width: 1px; background: rgba(106,76,255,0.12); pointer-events: none;
+}
+#progress-fill {
+  position: absolute; top: 0; left: 0; right: 0;
+  background: var(--violet); transform-origin: top;
+  transform: scaleY(0); transition: transform 0.1s linear;
+  height: 100%;
+}
+
+/* ---- LOADING VEIL — pure black, fades scene in ---- */
+#loading-veil {
+  position: fixed; inset: 0; z-index: 99;
+  background: var(--void);
+  opacity: 1; transition: opacity 1.2s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+#loading-veil .wordmark {
+  font-family: var(--font-display);
+  font-size: 11px; letter-spacing: 0.4em; text-transform: uppercase;
+  color: rgba(242,239,230,0); animation: veilPulse 1.8s ease-in-out infinite;
+}
+@keyframes veilPulse { 0%,100%{color:rgba(242,239,230,0.12)} 50%{color:rgba(242,239,230,0.38)} }
+
+/* ---- AFTER SCROLL (section below) ---- */
+#after {
+  position: relative; z-index: 2;
+  background: var(--void);
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 80px 40px;
+}
+.after-inner {
+  max-width: 600px; text-align: center;
+  font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgba(242,239,230,0.3);
+}
+
+/* ---- RESPONSIVE ---- */
+@media (max-width: 768px) {
+  #ui { padding: 24px 24px 32px; }
+  .nav-links { display: none; }
+  .headline { font-size: clamp(40px, 11vw, 72px); }
+  .cta-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- VEIL -->
+<div id="loading-veil"><span class="wordmark">SMILEFIT</span></div>
+
+<!-- PROGRESS RAIL -->
+<div id="progress-rail"><div id="progress-fill"></div></div>
+
+<!-- SCROLL DRIVER: this is what scrolls; stage is fixed inside it -->
+<div id="scroll-driver">
+
+  <!-- FIXED STAGE -->
+  <div id="stage">
+
+    <!-- VIDEO — the visual truth -->
+    <video
+      id="hero-video"
+      src="/smilefit-hero-video%20(1).mp4"
+      preload="auto"
+      muted
+      playsinline
+      disablePictureInPicture
+      aria-hidden="true"
+    ></video>
+
+    <!-- OVERLAY LAYERS -->
+    <div id="grad-left"></div>
+    <div id="vignette"></div>
+    <div id="floor-ring"></div>
+    <div id="scan-wave"></div>
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- UI -->
+    <div id="ui">
+      <!-- NAV -->
+      <nav id="nav">
+        <span class="brand">SmileFit</span>
+        <div class="nav-links">
+          <a href="#">Training</a>
+          <a href="#">Räume</a>
+          <a href="#">Mitgliedschaft</a>
+          <a href="#">Kontakt</a>
+        </div>
+      </nav>
+
+      <!-- HERO CONTENT (bottom-left) -->
+      <div>
+        <div class="eyebrow" id="eyebrow">
+          <span class="eyebrow-rule"></span>
+          <span class="eyebrow-text">Built Different.</span>
+        </div>
+        <div class="headline-block">
+          <h1 class="headline" id="headline">Stärke<br>mit Stil</h1>
+          <p class="subline" id="subline">Performance Training auf Premium-Niveau.</p>
+          <div class="cta-row" id="cta-row">
+            <a class="cta-primary" id="cta-primary" href="#">
+              Jetzt starten
+              <span aria-hidden>→</span>
+            </a>
+            <a class="cta-secondary" href="#">
+              Mehr erfahren <span class="arrow" aria-hidden>→</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Bottom status row -->
+        <div id="bottom-bar">
+          <div class="scroll-cue" id="scroll-cue">
+            <span>Scroll</span>
+            <span class="cue-track"><span class="cue-fill"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /stage -->
+</div><!-- /scroll-driver -->
+
+<!-- SECTION BELOW -->
+<div id="after">
+  <div class="after-inner">Performance Chamber — Next Section</div>
+</div>
+
+<script>
+/* ================================================================
+   SMILEFIT — Scroll-Driven Cinematic Hero
+   Core mechanic: scroll progress → video.currentTime (scrubbed,
+   never autoplayed). All overlays are driven by the same progress.
+   ================================================================ */
+
+(function () {
+  "use strict";
+
+  // ---- DOM ----
+  const video       = document.getElementById("hero-video");
+  const floorRing   = document.getElementById("floor-ring");
+  const scanWave    = document.getElementById("scan-wave");
+  const vignette    = document.getElementById("vignette");
+  const pCanvas     = document.getElementById("particle-canvas");
+  const pCtx        = pCanvas.getContext("2d");
+  const veil        = document.getElementById("loading-veil");
+  const progressFill= document.getElementById("progress-fill");
+  const scrollCue   = document.getElementById("scroll-cue");
+
+  const elNav       = document.getElementById("nav");
+  const elEyebrow   = document.getElementById("eyebrow");
+  const elHeadline  = document.getElementById("headline");
+  const elSubline   = document.getElementById("subline");
+  const elCtaRow    = document.getElementById("cta-row");
+  const elBottomBar = document.getElementById("bottom-bar");
+  const elCtaPrimary= document.getElementById("cta-primary");
+
+  // ---- State ----
+  let ready       = false;   // video metadata + enough data loaded
+  let duration    = 0;
+  let scrollProg  = 0;       // 0-1, raw from scroll position
+  let smoothProg  = 0;       // eased (for slow/cinematic feel)
+  let targetTime  = 0;       // video.currentTime target
+  let currentTime = 0;       // smoothed currentTime
+  let rafId       = null;
+
+  // ---- Particles ----
+  const PCOUNT = 380;
+  const parts  = [];
+  function resizeCanvas() {
+    pCanvas.width  = window.innerWidth;
+    pCanvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  for (let i = 0; i < PCOUNT; i++) {
+    parts.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      r: 0.6 + Math.random() * 1.0,
+      vy: -(0.04 + Math.random() * 0.14),
+      vx: (Math.random() - 0.5) * 0.06,
+      a: Math.random(),
+    });
+  }
+  function tickParticles(dt, phase) {
+    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+    const alpha = Math.min(phase * 1.8, 0.55);
+    if (alpha < 0.01) return;
+    for (const p of parts) {
+      p.y += p.vy * dt;
+      p.x += p.vx * dt;
+      if (p.y < -4) { p.y = pCanvas.height + 4; p.x = Math.random() * pCanvas.width; }
+      if (p.x < 0) p.x = pCanvas.width;
+      if (p.x > pCanvas.width) p.x = 0;
+      pCtx.beginPath();
+      pCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      pCtx.fillStyle = `rgba(195,190,220,${alpha * 0.5})`;
+      pCtx.fill();
+    }
+  }
+
+  // ---- Easing helpers ----
+  const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ramp   = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
+  const easeIO = (t) => t * t * (3 - 2 * t);
+
+  // Piecewise video time mapping: scroll 0-1 → video 0-1 (non-linear)
+  // Slow at start (frozen), faster during activation, normal through peak.
+  function scrollToVideoFraction(p) {
+    if (p < 0.15) return ramp(p, 0, 0.15) * 0.04;           // 0–4%: barely moves
+    if (p < 0.35) return 0.04 + ramp(p, 0.15, 0.35) * 0.22; // 4–26%: activation
+    if (p < 0.65) return 0.26 + ramp(p, 0.35, 0.65) * 0.36; // 26–62%: unlock
+    if (p < 0.90) return 0.62 + ramp(p, 0.65, 0.90) * 0.26; // 62–88%: peak
+    return 0.88 + ramp(p, 0.90, 1.00) * 0.12;               // 88–100%: open
+  }
+
+  // ---- Scroll reading ----
+  function getScrollProg() {
+    const driver = document.getElementById("scroll-driver");
+    const maxY   = driver.offsetHeight - window.innerHeight;
+    return maxY > 0 ? clamp(window.scrollY / maxY, 0, 1) : 0;
+  }
+
+  // ---- Main loop ----
+  let lastTs = 0;
+  function loop(ts) {
+    rafId = requestAnimationFrame(loop);
+    const dt = Math.min((ts - lastTs) || 16, 50);
+    lastTs = ts;
+
+    // Ease scroll progress (slightly slower than raw for cinematic feel)
+    scrollProg = getScrollProg();
+    smoothProg += (scrollProg - smoothProg) * 0.055;
+    const p = smoothProg;
+
+    // ---- Video scrub (smooth currentTime → target) ----
+    if (ready && duration > 0) {
+      const frac = scrollToVideoFraction(p);
+      targetTime = frac * duration;
+      // Ease currentTime toward target — keeps motion silky
+      currentTime += (targetTime - currentTime) * 0.12;
+      // Only write if change is meaningful (avoids seek spam)
+      if (Math.abs(video.currentTime - currentTime) > 0.01) {
+        video.currentTime = currentTime;
+      }
+    }
+
+    // ---- Phase values ----
+    const pActivate = easeIO(ramp(p, 0.15, 0.35));
+    const pUnlock   = easeIO(ramp(p, 0.35, 0.65));
+    const pPeak     = easeIO(ramp(p, 0.65, 0.90));
+    const pOpen     = easeIO(ramp(p, 0.90, 1.00));
+
+    // ---- Floor ring glow ----
+    // Appears at activation, pulses during peak
+    const ringBase  = pActivate * 0.65 + pPeak * 0.25;
+    const ringPulse = Math.sin(ts * 0.0018) * 0.08 * pActivate;
+    floorRing.style.opacity = Math.min(ringBase + ringPulse, 0.9);
+    // Violet color enriches during activation
+    const rAlpha = pActivate * 0.18 + pPeak * 0.08;
+    floorRing.style.background = `radial-gradient(ellipse 55% 100% at 50% 100%,
+      rgba(106,76,255,0) 0%,
+      rgba(106,76,255,${rAlpha}) 40%,
+      rgba(106,76,255,${rAlpha * 0.4}) 68%,
+      transparent 100%)`;
+
+    // ---- Scan wave (sweeps bottom→top during 0.15-0.35) ----
+    if (pActivate > 0.01 && pActivate < 0.99) {
+      const scanY = (1 - pActivate) * 100; // bottom=100% top=0%
+      scanWave.style.bottom = scanY + "%";
+      const edge = Math.sin(pActivate * Math.PI);
+      scanWave.style.opacity = (edge * 0.75).toString();
+    } else {
+      scanWave.style.opacity = "0";
+    }
+
+    // ---- Vignette deepens at end ----
+    const vigExtra = pOpen * 0.25;
+    vignette.style.opacity = (1 + vigExtra).toString();
+
+    // ---- Particles ----
+    pCanvas.style.opacity = (pUnlock * 0.7 + pPeak * 0.3).toString();
+    tickParticles(dt, pUnlock);
+
+    // ---- Progress rail ----
+    progressFill.style.transform = `scaleY(${p})`;
+
+    // ---- Scroll cue hides as scroll begins ----
+    scrollCue.style.opacity = (1 - ramp(p, 0.04, 0.16)).toString();
+
+    // ---- Subtle video scale parallax on peak ----
+    const vidScale = 1.03 + pPeak * 0.04;
+    video.style.transform = `scale(${vidScale})`;
+  }
+
+  // ---- Boot sequence ----
+  function reveal() {
+    // Reveal UI elements with CSS transitions
+    requestAnimationFrame(() => {
+      elNav.classList.add("show");
+      elEyebrow.classList.add("show");
+      elHeadline.classList.add("show");
+      elSubline.classList.add("show");
+      elCtaRow.classList.add("show");
+      elBottomBar.classList.add("show");
+    });
+
+    // Fade out loading veil AFTER first frames are stable
+    setTimeout(() => {
+      veil.style.opacity = "0";
+      setTimeout(() => veil.remove(), 1200);
+    }, 550);
+
+    ready = true;
+    // Kick off animation loop
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function boot() {
+    video.pause();
+    video.currentTime = 0;
+    duration = video.duration;
+
+    if (!isNaN(duration) && duration > 0) {
+      // Seek to first strong frame (a tiny offset to let first frame decode)
+      video.currentTime = 0.05;
+      video.addEventListener("seeked", () => { reveal(); }, { once: true });
+    } else {
+      reveal(); // fallback: just show
+    }
+  }
+
+  // Wait for enough video data
+  if (video.readyState >= 4) {
+    boot();
+  } else {
+    video.addEventListener("canplaythrough", boot, { once: true });
+    // Fallback if video fails to load at all (e.g. file not found)
+    video.addEventListener("error", () => {
+      console.warn("SmileFit: Video failed to load. Using fallback.");
+      // Try the existing hero video as fallback
+      video.src = "/media/hero-a.mp4";
+      video.addEventListener("canplaythrough", boot, { once: true });
+      video.addEventListener("error", () => {
+        // No video — just show the UI over a dark background
+        reveal();
+      }, { once: true });
+      video.load();
+    }, { once: true });
+    video.load();
+  }
+
+  // ---- CTA pulse on hover ----
+  elCtaPrimary.addEventListener("mouseenter", () => {
+    elCtaPrimary.classList.remove("pulse");
+    void elCtaPrimary.offsetWidth; // reflow to retrigger
+    elCtaPrimary.classList.add("pulse");
+    // Brief violet ring flash
+    floorRing.style.transition = "none";
+    floorRing.style.opacity = "0.9";
+    setTimeout(() => { floorRing.style.transition = "opacity 0.4s ease"; }, 60);
+  });
+
+  // ---- Resize ----
+  window.addEventListener("resize", () => {
+    resizeCanvas();
+    for (const p of parts) {
+      if (p.x > window.innerWidth)  p.x = Math.random() * window.innerWidth;
+      if (p.y > window.innerHeight) p.y = Math.random() * window.innerHeight;
+    }
+  });
+
+  // ---- Prevent video native controls / autoplay ----
+  video.addEventListener("play", () => { if (ready) video.pause(); });
+
+})();
+</script>
+</body>
+</html>
