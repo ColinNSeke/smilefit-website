@@ -82,14 +82,15 @@ export default function CinematicHero() {
         if (reduce) {
           gsap.set("[data-letterbox]", { clipPath: "inset(0% 0%)" });
           gsap.set(
-            "[data-nav], [data-eyebrow], [data-line], [data-support], [data-cta], [data-tabs], [data-scrollcue]",
+            "[data-nav], [data-brand], [data-eyebrow], [data-line], [data-statement], [data-support], [data-cta], [data-tabs], [data-scrollcue]",
             { opacity: 1, y: 0, clipPath: "inset(0% 0%)" }
           );
           return;
         }
 
         // -------- Scene 0: quiet editorial load inside letterbox --------
-        gsap.set("[data-letterbox]", { clipPath: "inset(8% 12% round 0px)" });
+        // ── TEXT REVEAL TIMING lives in this `intro` timeline ──
+        gsap.set("[data-letterbox]", { clipPath: "inset(6% 8% round 0px)" });
         gsap.set("[data-line]", { clipPath: "inset(0% 0% 100% 0%)" });
 
         const intro = gsap.timeline({
@@ -97,25 +98,37 @@ export default function CinematicHero() {
           delay: 0.15,
         });
         intro
+          // Letterbox opens as part of the reveal so the hero loads clean &
+          // complete (nothing clipped); scroll then drives the activation.
+          .to("[data-letterbox]", { clipPath: "inset(0% 0% round 0px)", duration: 1.3, ease: "power3.inOut" }, 0.05)
           .from("[data-nav]", { y: -14, opacity: 0, duration: 0.9, stagger: 0.06 }, 0)
-          .from("[data-eyebrow]", { y: 12, opacity: 0, duration: 0.9 }, 0.15)
-          // Headline lines rise behind a clip mask — calm, magazine reveal.
+          // Step 1: SMILEFIT brand mark fades in.
+          .from("[data-brand]", { y: 8, opacity: 0, duration: 0.9 }, 0.2)
+          // Step 2: Eyebrow — editorial line appears.
+          .from("[data-eyebrow]", { y: 8, opacity: 0, duration: 0.8 }, 0.52)
+          // Step 3: Main serif headline — cinematic line-by-line masked reveal.
           .to(
             "[data-line]",
-            { clipPath: "inset(0% 0% 0% 0%)", duration: 1.15, ease: "expo.out", stagger: 0.14 },
-            0.25
+            { clipPath: "inset(0% 0% 0% 0%)", duration: 1.3, ease: "expo.out", stagger: 0.18 },
+            0.85
           )
           .from(
             "[data-line]",
-            { yPercent: 18, duration: 1.15, ease: "expo.out", stagger: 0.14 },
-            0.25
+            { yPercent: 120, filter: "blur(14px)", duration: 1.3, ease: "expo.out", stagger: 0.18 },
+            0.85
           )
-          .from("[data-support]", { y: 12, opacity: 0, duration: 0.9 }, 0.7)
-          .from("[data-cta] > *", { y: 14, opacity: 0, duration: 0.8, stagger: 0.1 }, 0.85)
-          .from("[data-tab]", { y: 10, opacity: 0, duration: 0.7, stagger: 0.06 }, 0.95)
-          .from("[data-scrollcue]", { opacity: 0, duration: 0.7 }, 1.05)
+          .set("[data-line]", { clearProps: "filter" })
+          // Step 4: Strong statement — bold impact reveal.
+          .from("[data-statement]", { y: 18, opacity: 0, filter: "blur(8px)", duration: 0.85, ease: "expo.out" }, 1.55)
+          .set("[data-statement]", { clearProps: "filter" })
+          // Supporting line follows gently.
+          .from("[data-support]", { y: 10, opacity: 0, duration: 0.7 }, 1.78)
+          // CTAs + tabs.
+          .from("[data-cta] > *", { y: 14, opacity: 0, duration: 0.8, stagger: 0.1 }, 1.9)
+          .from("[data-tab]", { y: 10, opacity: 0, duration: 0.7, stagger: 0.06 }, 1.95)
+          .from("[data-scrollcue]", { opacity: 0, duration: 0.7 }, 2.05)
           // Floor glow breathes in to a quiet resting level.
-          .fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.32, duration: 1.2 }, 0.4);
+          .fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.28, duration: 1.2 }, 0.6);
 
         // -------- Scene 1: scroll-scrubbed activation + handoff --------
         const morph = gsap.timeline({
@@ -148,12 +161,7 @@ export default function CinematicHero() {
         });
 
         morph
-          // Letterbox opens as activation begins.
-          .to(
-            "[data-letterbox]",
-            { clipPath: "inset(0% 0% round 0px)", duration: 0.35, ease: "power2.inOut" },
-            0.1
-          )
+          // (Letterbox already opened during the intro reveal.)
           // Footage pushes in subtly through the unlock.
           .to("[data-bg]", { scale: 1.12 }, 0)
           // Floor glow rises from resting → activation → peak.
@@ -163,11 +171,14 @@ export default function CinematicHero() {
           .to("[data-particles]", { opacity: 0.85 }, 0.3)
           // Editorial copy holds during frozen tension, then clears so the
           // moving footage dominates the peak.
-          .to("[data-eyebrow]", { opacity: 0, y: -8 }, 0.3)
-          .to("[data-headline]", { opacity: 0, y: -26, scale: 1.04 }, 0.32)
-          .to("[data-support]", { opacity: 0, y: -8 }, 0.34)
-          .to("[data-cta]", { opacity: 0, y: -8 }, 0.36)
-          .to("[data-tabs]", { opacity: 0, y: 8 }, 0.3)
+          .to("[data-brand]", { opacity: 0, y: -8 }, 0.26)
+          .to("[data-eyebrow]", { opacity: 0, y: -8 }, 0.27)
+          .to("[data-headline]", { opacity: 0, y: -26, scale: 1.04 }, 0.30)
+          .to("[data-statement]", { opacity: 0, y: 12 }, 0.32)
+          .to("[data-support]", { opacity: 0, y: 8 }, 0.30)
+          .to("[data-cta]", { opacity: 0, y: -8 }, 0.35)
+          .to("[data-quote]", { opacity: 0 }, 0.30)
+          .to("[data-tabs]", { opacity: 0, y: 8 }, 0.28)
           .to("[data-scrollcue]", { opacity: 0 }, 0.12)
           // Vignette deepens, floor glow eases off, handoff to next section.
           .to("[data-vignette]", { opacity: 0.85 }, 0.7)
@@ -235,7 +246,7 @@ export default function CinematicHero() {
         }
         if (reduce) return;
         gsap.from(
-          "[data-nav], [data-eyebrow], [data-line], [data-support], [data-cta] > *, [data-tab]",
+          "[data-nav], [data-brand], [data-eyebrow], [data-line], [data-statement], [data-support], [data-cta] > *, [data-tab]",
           { opacity: 0, y: 18, duration: 0.8, ease: "power3.out", stagger: 0.06 }
         );
         gsap.fromTo("[data-floorglow]", { opacity: 0 }, { opacity: 0.3, duration: 1 });
@@ -260,17 +271,25 @@ export default function CinematicHero() {
           src={HERO_VIDEO_SRC}
           poster="/hero/poster.jpg"
           className="absolute inset-0 h-full w-full object-cover"
-          style={{ filter: "brightness(1.06) saturate(1.04) contrast(1.03)" }}
+          style={{ filter: "brightness(0.38) saturate(0.7) contrast(1.1)" }}
           muted
           playsInline
           preload="auto"
         />
-        {/* Restrained violet wash — top corner only, no big gradient. */}
+        {/* Heavy atmospheric overlay — athlete recedes, becomes pure ambience */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(120% 80% at 15% 8%, rgba(122,76,255,0.10), transparent 52%)",
+              "linear-gradient(180deg, rgba(5,5,5,0.72) 0%, rgba(5,5,5,0.38) 40%, rgba(5,5,5,0.58) 100%)",
+          }}
+        />
+        {/* Subtle violet top-left atmospheric wash */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(120% 80% at 15% 8%, rgba(122,76,255,0.08), transparent 52%)",
           }}
         />
       </div>
@@ -279,6 +298,7 @@ export default function CinematicHero() {
       <HeroThreeOverlay
         ref={overlay}
         className="pointer-events-none absolute inset-0 z-[1]"
+        style={{ opacity: 0.65 }}
       />
 
       {/* Atmospheric particles — subtle dust drifting over the video */}
@@ -346,7 +366,7 @@ export default function CinematicHero() {
         className="pointer-events-none absolute inset-0 z-[6]"
         style={{
           background:
-            "radial-gradient(70% 55% at 50% 52%, rgba(5,5,5,0.55) 0%, rgba(5,5,5,0.18) 45%, transparent 75%)",
+            "radial-gradient(80% 60% at 50% 52%, rgba(5,5,5,0.65) 0%, rgba(5,5,5,0.25) 50%, transparent 80%)",
         }}
       />
 
@@ -394,46 +414,92 @@ export default function CinematicHero() {
 
         {/* ---- Centered editorial block ---- */}
         <div className="absolute inset-0 z-[10] flex flex-col items-center justify-center px-6 text-center">
-          {/* Eyebrow */}
-          <div data-eyebrow className="mb-7 flex items-center gap-4">
-            <span className="block h-px w-8 bg-[#7a4cff]/70" />
+          {/* 1. Top brand — small, spaced */}
+          <div data-brand className="mb-5 flex items-center gap-4">
+            <span className="hidden h-px w-8 bg-[#7a4cff]/50 sm:block" />
             <span
-              className="text-[11px] uppercase tracking-[0.42em] text-[#ece9f2]/75"
-              style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
+              className="text-[#ece9f2]/90"
+              style={{
+                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                fontSize: "clamp(10px, 1.1vw, 13px)",
+                letterSpacing: "0.38em",
+                fontWeight: 600,
+              }}
             >
-              SMILEFIT · PREMIUM FITNESS
+              SMILEFIT
             </span>
-            <span className="block h-px w-8 bg-[#7a4cff]/70" />
+            <span className="hidden h-px w-8 bg-[#7a4cff]/50 sm:block" />
           </div>
 
-          {/* Headline */}
+          {/* 2. Eyebrow — editorial, spaced */}
+          <p
+            data-eyebrow
+            className="mb-10 text-[#ece9f2]/55"
+            style={{
+              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontSize: "clamp(9px, 0.95vw, 12px)",
+              letterSpacing: "0.30em",
+              fontWeight: 500,
+            }}
+          >
+            PREMIUM FITNESS · STUTTGART
+          </p>
+
+          {/* 3. Main serif headline — masked line-by-line reveal */}
           <h1
             data-headline
-            className="font-serif-editorial"
+            className="font-serif-editorial uppercase"
             style={{
-              fontSize: "clamp(48px, 8.5vw, 132px)",
+              fontSize: "clamp(36px, 6.5vw, 108px)",
+              letterSpacing: "0.04em",
+              lineHeight: 1.04,
+              fontWeight: 300,
               willChange: "transform, opacity",
             }}
           >
-            <span data-line className="block" style={{ fontWeight: 400 }}>
-              Stärker werden.
+            <span className="block overflow-hidden">
+              <span data-line className="block" style={{ willChange: "transform, filter" }}>
+                Bring back your prime,
+              </span>
             </span>
-            <span data-line className="block italic" style={{ fontWeight: 400 }}>
-              Besser fühlen.
+            <span className="block overflow-hidden">
+              <span data-line className="block" style={{ willChange: "transform, filter" }}>
+                one more time.
+              </span>
             </span>
           </h1>
 
-          {/* Supporting line */}
+          {/* 4. Strong statement — bold impact sans */}
+          <p
+            data-statement
+            className="mt-7 text-[#ece9f2]"
+            style={{
+              fontFamily: "Arial Black, 'Helvetica Neue', Impact, sans-serif",
+              fontSize: "clamp(18px, 2.2vw, 34px)",
+              letterSpacing: "0.12em",
+              fontWeight: 900,
+              textTransform: "uppercase",
+            }}
+          >
+            YOU&rsquo;RE NOT DONE YET.
+          </p>
+
+          {/* 5. Supporting line */}
           <p
             data-support
-            className="mt-8 text-[13px] uppercase tracking-[0.34em] text-[#ece9f2]/70"
-            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
+            className="mt-4 text-[#ece9f2]/50"
+            style={{
+              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontSize: "clamp(11px, 1.1vw, 15px)",
+              letterSpacing: "0.18em",
+              fontWeight: 400,
+            }}
           >
-            Kraft. Energie. Selbstvertrauen.
+            Kraft. Energie. Fokus.
           </p>
 
           {/* CTAs */}
-          <div data-cta className="mt-11 flex flex-col items-center gap-4 sm:flex-row">
+          <div data-cta className="mt-12 flex flex-col items-center gap-4 sm:flex-row">
             <a
               ref={cta}
               href="#kontakt"
@@ -460,11 +526,11 @@ export default function CinematicHero() {
           </div>
         </div>
 
-        {/* ---- Bottom tabs + scroll cue ---- */}
-        <div className="absolute inset-x-0 bottom-0 z-[10] flex items-end justify-between gap-6 px-6 pb-8 md:px-10 md:pb-10">
+        {/* ---- Bottom tabs ---- */}
+        <div className="absolute inset-x-0 bottom-0 z-[10] flex items-end justify-center gap-6 px-6 pb-8 md:px-10 md:pb-10">
           <div
             data-tabs
-            className="flex flex-wrap items-center gap-x-7 gap-y-2"
+            className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2"
             style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
           >
             {TABS.map((tab, i) => (
@@ -472,7 +538,7 @@ export default function CinematicHero() {
                 key={tab}
                 data-tab
                 className={`text-[10px] uppercase tracking-[0.3em] ${
-                  i === 0 ? "text-[#ece9f2]" : "text-[#ece9f2]/45"
+                  i === 0 ? "text-[#ece9f2]" : "text-[#ece9f2]/40"
                 }`}
               >
                 {i === 0 && (
@@ -482,18 +548,21 @@ export default function CinematicHero() {
               </span>
             ))}
           </div>
+        </div>
 
-          {/* Scroll cue */}
-          <div
-            data-scrollcue
-            className="hidden flex-col items-center gap-2 text-[#ece9f2]/60 md:flex"
-            style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
-          >
-            <span className="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
-            <span className="relative block h-12 w-px overflow-hidden bg-[#ece9f2]/15">
-              <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#ece9f2]" />
-            </span>
-          </div>
+        {/* Empty placeholder to keep morph timeline data-quote ref valid */}
+        <div data-quote className="pointer-events-none absolute opacity-0" aria-hidden />
+
+        {/* Scroll cue — centered */}
+        <div
+          data-scrollcue
+          className="absolute bottom-8 left-1/2 z-[10] hidden -translate-x-1/2 flex-col items-center gap-2 text-[#ece9f2]/60 md:flex"
+          style={{ fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif", fontWeight: 500 }}
+        >
+          <span className="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
+          <span className="relative block h-12 w-px overflow-hidden bg-[#ece9f2]/15">
+            <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#ece9f2]" />
+          </span>
         </div>
       </div>
 

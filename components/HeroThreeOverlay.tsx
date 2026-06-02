@@ -1,6 +1,6 @@
 "use client";
 
-import {
+import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
@@ -37,18 +37,20 @@ export interface HeroOverlayHandle {
 
 // Global feel knobs — raise for more visible motion, lower for calmer.
 const INTENSITY = {
-  plateSpin: 1.0, // how far plates rotate across the scroll
-  dumbbellTilt: 0.7,
-  kettlebellSpin: 0.45,
-  ringSpin: 1.5,
-  orbit: 0.5, // peak-phase orbital drift amplitude
+  plateSpin: 1.5, // how far plates rotate across the scroll
+  dumbbellTilt: 1.05,
+  kettlebellSpin: 0.7,
+  barbellSpin: 0.85,
+  ringSpin: 2.1,
+  orbit: 0.85, // peak-phase orbital drift amplitude
+  drift: 0.5, // mid-phase positional drift amplitude (all objects)
 };
 const MOUSE_PARALLAX = 0.35; // world units of sway at screen edge
 
 // Procedural object definitions. `depth` 0 = background (moves least with
 // scroll + mouse), 1 = foreground (moves most). `amp` scales scroll motion.
 type ObjSpec = {
-  kind: "plate" | "dumbbell" | "kettlebell";
+  kind: "plate" | "dumbbell" | "kettlebell" | "barbell";
   pos: [number, number, number];
   scale: number;
   rot: [number, number, number];
@@ -63,10 +65,12 @@ const OBJECTS: ObjSpec[] = [
   { kind: "plate", pos: [-5.0, -0.6, 3.2], scale: 1.5, rot: [0.15, 0.5, 0.1], depth: 1.0, amp: 1.0, dir: -1 },
   { kind: "plate", pos: [5.1, 0.4, 3.0], scale: 1.55, rot: [-0.1, -0.5, -0.12], depth: 1.0, amp: 0.95, dir: 1 },
   // Mid-depth dumbbells.
-  { kind: "dumbbell", pos: [-3.4, 2.3, -1.0], scale: 0.85, rot: [0.2, 0.3, 0.5], depth: 0.5, amp: 0.7, dir: 1 },
-  { kind: "dumbbell", pos: [3.7, -0.5, -0.6], scale: 0.9, rot: [-0.15, -0.4, -0.35], depth: 0.5, amp: 0.7, dir: -1 },
+  { kind: "dumbbell", pos: [-3.4, 2.3, -1.0], scale: 0.85, rot: [0.2, 0.3, 0.5], depth: 0.5, amp: 0.85, dir: 1 },
+  { kind: "dumbbell", pos: [3.7, -0.5, -0.6], scale: 0.9, rot: [-0.15, -0.4, -0.35], depth: 0.5, amp: 0.85, dir: -1 },
   // Kettlebell — lower-right, heavy inertia.
-  { kind: "kettlebell", pos: [2.7, -2.7, 1.0], scale: 0.95, rot: [0.0, 0.2, 0.05], depth: 0.7, amp: 0.55, dir: 1, heavy: true },
+  { kind: "kettlebell", pos: [2.7, -2.7, 1.0], scale: 0.95, rot: [0.0, 0.2, 0.05], depth: 0.7, amp: 0.7, dir: 1, heavy: true },
+  // Barbell segment — lower-left, mid-depth.
+  { kind: "barbell", pos: [-2.4, -2.5, 0.4], scale: 0.85, rot: [0.1, 0.25, 0.18], depth: 0.6, amp: 0.7, dir: -1 },
 ];
 
 /**
@@ -163,6 +167,32 @@ function buildDumbbell(): THREE.Group {
   return g;
 }
 
+function buildBarbell(): THREE.Group {
+  const g = new THREE.Group();
+  const chrome = chromeMat();
+  const rubber = rubberMat();
+  const metal = metalMat();
+  // Long knurled bar.
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4.3, 24), chrome);
+  bar.rotation.z = Math.PI / 2;
+  g.add(bar);
+  // Loaded plate near the right end.
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.18, 48), rubber);
+  plate.rotation.z = Math.PI / 2;
+  plate.position.x = 1.45;
+  g.add(plate);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.045, 14, 48), chrome);
+  rim.rotation.y = Math.PI / 2;
+  rim.position.x = 1.45;
+  g.add(rim);
+  // Collar.
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.32, 24), metal);
+  collar.rotation.z = Math.PI / 2;
+  collar.position.x = 1.02;
+  g.add(collar);
+  return g;
+}
+
 function buildKettlebell(): THREE.Group {
   const g = new THREE.Group();
   const metal = metalMat();
@@ -190,8 +220,8 @@ function buildRing(radius: number): THREE.Mesh {
   return new THREE.Mesh(new THREE.TorusGeometry(radius, 0.012, 12, 160), mat);
 }
 
-const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string }>(
-  function HeroThreeOverlay({ className }, ref) {
+const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string; style?: React.CSSProperties }>(
+  function HeroThreeOverlay({ className, style }, ref) {
     const mountRef = useRef<HTMLDivElement | null>(null);
 
     // Scroll progress (target) + smoothed values live in refs so the imperative
@@ -265,7 +295,9 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string }>(
             ? buildPlate()
             : spec.kind === "dumbbell"
               ? buildDumbbell()
-              : buildKettlebell();
+              : spec.kind === "barbell"
+                ? buildBarbell()
+                : buildKettlebell();
         g.position.set(...spec.pos);
         g.rotation.set(...spec.rot);
         g.scale.setScalar(spec.scale);
@@ -366,9 +398,11 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string }>(
         const openOut = ramp(0.9, 1.0, p); // open-up outward drift
         const breath = reduce ? 0 : Math.sin(t * 0.7) * 0.012; // frozen breathing
         const frozen = 1 - smoothstep(0.0, 0.15, p);
-        const vib = pulseRef.current * Math.sin(t * 40) * 0.01;
+        const vib = pulseRef.current * Math.sin(t * 40) * 0.012;
+        // Mid-phase positional drift becomes clearly visible 0.30 → 0.62.
+        const driftF = smoothstep(0.3, 0.62, p);
 
-        for (const { group, spec, base } of tracked) {
+        tracked.forEach(({ group, spec, base }, idx) => {
           const d = spec.heavy ? driveHeavy : drive;
           const sign = spec.dir;
           // Rotation — slow, heavy, scroll-driven (no fast spin).
@@ -377,26 +411,32 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string }>(
               ? d * INTENSITY.plateSpin
               : spec.kind === "dumbbell"
                 ? d * INTENSITY.dumbbellTilt
-                : d * INTENSITY.kettlebellSpin;
+                : spec.kind === "barbell"
+                  ? d * INTENSITY.barbellSpin
+                  : d * INTENSITY.kettlebellSpin;
           group.rotation.z = spec.rot[2] + sign * spin + breath * frozen * spec.amp;
-          group.rotation.x = spec.rot[0] + Math.sin(d * 1.3) * 0.12 * spec.amp;
-          group.rotation.y = spec.rot[1] + sign * d * 0.18;
+          group.rotation.x = spec.rot[0] + Math.sin(d * 1.3) * 0.18 * spec.amp;
+          group.rotation.y = spec.rot[1] + sign * d * 0.28;
 
-          // Peak orbit — small controlled circular drift, foreground moves more.
+          // Mid-phase drift — every object visibly translates while scrolling.
+          const ph = idx * 1.7;
+          const driftX = Math.sin(d * 2.2 + ph) * INTENSITY.drift * spec.amp * driftF;
+          const driftY = Math.cos(d * 1.8 + ph * 1.3) * INTENSITY.drift * 0.6 * spec.amp * driftF;
+          // Peak orbit — controlled circular drift, foreground moves more.
           const orbAng = d * 1.4 * sign;
           const orbR = peak * INTENSITY.orbit * spec.amp;
           const ox = Math.cos(orbAng) * orbR;
           const oy = Math.sin(orbAng) * orbR;
           // Open-up outward drift along the object's own direction from center.
-          const outX = Math.sign(base.x || 1) * openOut * 0.6 * spec.amp;
-          const outY = Math.sign(base.y || 1) * openOut * 0.25 * spec.amp;
+          const outX = Math.sign(base.x || 1) * openOut * 0.7 * spec.amp;
+          const outY = Math.sign(base.y || 1) * openOut * 0.3 * spec.amp;
           // Mouse parallax — foreground (depth 1) reacts more.
           const par = MOUSE_PARALLAX * spec.depth;
 
-          group.position.x = base.x + ox + outX + mouse.current.sx * par + vib;
-          group.position.y = base.y + oy + outY - mouse.current.sy * par * 0.6;
+          group.position.x = base.x + driftX + ox + outX + mouse.current.sx * par + vib;
+          group.position.y = base.y + driftY + oy + outY - mouse.current.sy * par * 0.6;
           group.position.z = base.z;
-        }
+        });
 
         // Rings — fade in during activation, rotate more at peak.
         const ringOpacity = smoothstep(0.12, 0.32, p) * (1 - 0.3 * openOut);
@@ -446,7 +486,7 @@ const HeroThreeOverlay = forwardRef<HeroOverlayHandle, { className?: string }>(
       };
     }, []);
 
-    return <div ref={mountRef} className={className} aria-hidden />;
+    return <div ref={mountRef} className={className} style={style} aria-hidden />;
   }
 );
 
