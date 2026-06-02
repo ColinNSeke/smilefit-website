@@ -2,6 +2,7 @@
 
 import SmoothScroll from "./SmoothScroll";
 import MixBlendCursor from "./MixBlendCursor";
+import ScrollProgressRail from "./ScrollProgressRail";
 import CinematicHero from "./CinematicHero";
 import RoomPowerOn from "./RoomPowerOn";
 import TrainingGrid from "./TrainingGrid";
@@ -14,6 +15,7 @@ export default function SmileFitLanding() {
   return (
     <>
       <MixBlendCursor />
+      <ScrollProgressRail />
       <SmoothScroll />
       <main className="relative w-full">
         <CinematicHero />
