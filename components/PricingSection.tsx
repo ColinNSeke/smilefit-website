@@ -65,9 +65,7 @@ function Check({ featured }: { featured?: boolean }) {
   return (
     <span
       className="mt-[2px] inline-flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full"
-      style={{
-        border: `1px solid ${featured ? "rgba(122,76,255,0.7)" : "rgba(244,241,247,0.28)"}`,
-      }}
+      style={{ border: `1px solid ${featured ? "rgba(122,76,255,0.8)" : "rgba(244,241,247,0.28)"}` }}
     >
       <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
         <path
@@ -88,79 +86,141 @@ export default function PricingSection() {
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const ctx = gsap.context(() => {
       if (reduce) {
-        gsap.set("[data-card], [data-phead]", { opacity: 1, y: 0 });
+        gsap.set("[data-card],[data-phead]", { clearProps: "all" });
         return;
       }
-      gsap.set("[data-phead]", { opacity: 0, y: 36, filter: "blur(8px)" });
+
+      /* =============================================
+         HEADING
+      ============================================= */
+      gsap.set("[data-phead]", { opacity: 0, y: 60, filter: "blur(12px)" });
       gsap.to("[data-phead]", {
-        y: 0,
         opacity: 1,
+        y: 0,
         filter: "blur(0px)",
-        duration: 1.1,
+        duration: 1.2,
         ease: "power3.out",
-        stagger: 0.12,
-        scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 82%" },
-      });
-      // Cards rise in stagger with scale + depth
-      gsap.set("[data-card]", { opacity: 0, y: 90, scale: 0.9, transformOrigin: "center bottom" });
-      gsap.to("[data-card]", {
-        y: 0,
-        opacity: 1,
-        scale: 1,
-        duration: 1.15,
-        ease: "power3.out",
-        stagger: 0.16,
-        scrollTrigger: { trigger: "[data-cards]", start: "top 84%" },
+        stagger: 0.14,
+        scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 85%" },
+        onComplete: () => gsap.set("[data-phead]", { clearProps: "filter" }),
       });
 
-      // Hover depth + magnetic CTA on pointer devices
-      if (window.matchMedia("(hover: hover)").matches) {
+      /* =============================================
+         CARDS — rise from below in 3D perspective
+         with scale + rotateX, heavy stagger
+      ============================================= */
+      gsap.set("[data-card]", {
+        opacity: 0,
+        y: 140,
+        scale: 0.82,
+        rotateX: -20,
+        transformPerspective: 1200,
+        transformOrigin: "center bottom",
+      });
+
+      gsap.to("[data-card]", {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        rotateX: 0,
+        duration: 1.3,
+        ease: "power3.out",
+        stagger: {
+          each: 0.18,
+          from: "start",
+        },
+        scrollTrigger: { trigger: "[data-cards]", start: "top 86%" },
+      });
+
+      /* =============================================
+         FEATURED CARD — pulsing glow aura (VERY visible)
+      ============================================= */
+      const featuredCard = root.current?.querySelector<HTMLElement>("[data-card-featured]");
+      if (featuredCard) {
+        // Rotating conic gradient
+        const aura = featuredCard.querySelector<HTMLElement>("[data-aura]");
+        if (aura) {
+          gsap.to(aura, {
+            rotation: 360,
+            duration: 6,
+            ease: "none",
+            repeat: -1,
+            transformOrigin: "50% 50%",
+          });
+        }
+
+        // Pulsing box-shadow — large, obvious, cannot be missed
+        gsap.to(featuredCard, {
+          boxShadow: "0 0 100px -20px rgba(122,76,255,0.95), 0 0 200px -60px rgba(122,76,255,0.50)",
+          duration: 2.0,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true,
+          delay: 0.5,
+        });
+      }
+
+      /* =============================================
+         HOVER — depth lift + glow
+      ============================================= */
+      const hover = window.matchMedia("(hover: hover)").matches;
+      if (hover) {
         gsap.utils.toArray<HTMLElement>("[data-card]").forEach((card) => {
-          const onEnter = () => gsap.to(card, { y: -8, duration: 0.4, ease: "power2.out" });
-          const onLeave = () => gsap.to(card, { y: 0, duration: 0.5, ease: "power2.out" });
+          const isFeatured = card.hasAttribute("data-card-featured");
+          const onEnter = () =>
+            gsap.to(card, {
+              y: -16,
+              scale: 1.02,
+              boxShadow: isFeatured
+                ? "0 0 120px -10px rgba(122,76,255,1.0), 0 40px 80px -30px rgba(0,0,0,0.8)"
+                : "0 40px 80px -30px rgba(0,0,0,0.6), 0 0 40px -20px rgba(122,76,255,0.30)",
+              duration: 0.45,
+              ease: "power2.out",
+            });
+          const onLeave = () =>
+            gsap.to(card, {
+              y: 0,
+              scale: 1,
+              duration: 0.55,
+              ease: "power2.out",
+              clearProps: isFeatured ? "" : "boxShadow",
+            });
           card.addEventListener("mouseenter", onEnter);
           card.addEventListener("mouseleave", onLeave);
         });
 
+        /* Magnetic CTA buttons */
         gsap.utils.toArray<HTMLElement>("[data-price-cta]").forEach((btn) => {
           const onMove = (e: MouseEvent) => {
-            const r = btn.getBoundingClientRect();
-            const dx = (e.clientX - (r.left + r.width / 2)) * 0.28;
-            const dy = (e.clientY - (r.top + r.height / 2)) * 0.28;
-            gsap.to(btn, { x: dx, y: dy, duration: 0.35, ease: "power2.out" });
+            const r  = btn.getBoundingClientRect();
+            const dx = (e.clientX - (r.left + r.width  / 2)) * 0.40;
+            const dy = (e.clientY - (r.top  + r.height / 2)) * 0.40;
+            gsap.to(btn, {
+              x: dx, y: dy,
+              boxShadow: "0 0 36px rgba(122,76,255,0.65)",
+              duration: 0.3,
+              ease: "power2.out",
+            });
           };
-          const onLeave = () => gsap.to(btn, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1,0.5)" });
+          const onLeave = () =>
+            gsap.to(btn, {
+              x: 0, y: 0,
+              boxShadow: "0 0 0px rgba(122,76,255,0)",
+              duration: 0.6,
+              ease: "elastic.out(1,0.5)",
+            });
           btn.addEventListener("mousemove", onMove as EventListener);
           btn.addEventListener("mouseleave", onLeave);
         });
       }
-
-      // Animated aura on the featured card
-      const featuredCard = root.current?.querySelector<HTMLElement>("[data-card-featured]");
-      if (featuredCard) {
-        const aura = featuredCard.querySelector<HTMLElement>("[data-aura]");
-        if (aura) {
-          gsap.to(aura, { rotation: 360, duration: 8, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
-        }
-        // Pulsing violet glow on the card itself (box-shadow isn't clipped)
-        gsap.to(featuredCard, {
-          boxShadow: "0 30px 90px -30px rgba(122,76,255,0.85), 0 0 50px -10px rgba(122,76,255,0.45)",
-          duration: 2.4,
-          ease: "sine.inOut",
-          repeat: -1,
-          yoyo: true,
-        });
-      }
     }, root);
 
-    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    const t = setTimeout(() => ScrollTrigger.refresh(), 700);
     if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
-    return () => {
-      window.clearTimeout(refreshT);
-      ctx.revert();
-    };
+    return () => { clearTimeout(t); ctx.revert(); };
   }, []);
 
   return (
@@ -169,9 +229,13 @@ export default function PricingSection() {
       id="mitgliedschaft"
       className="relative w-full overflow-hidden bg-[#07060b] py-24 text-[#f4f1f7] md:py-36"
     >
+      {/* Background glow */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-70"
-        style={{ background: "radial-gradient(55% 45% at 50% 0%, rgba(95,48,195,0.12) 0%, transparent 60%)" }}
+        className="pointer-events-none absolute inset-0 opacity-80"
+        style={{
+          background:
+            "radial-gradient(55% 45% at 50% 0%, rgba(95,48,195,0.18) 0%, transparent 60%)",
+        }}
       />
 
       <div className="relative mx-auto max-w-[1320px] px-6 md:px-12">
@@ -181,7 +245,7 @@ export default function PricingSection() {
             data-phead
             className="mb-5"
             style={{
-              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
               fontSize: "11px",
               letterSpacing: "0.32em",
               fontWeight: 600,
@@ -193,27 +257,33 @@ export default function PricingSection() {
           <h2
             data-phead
             className="font-serif-editorial mx-auto max-w-[800px]"
-            style={{ fontSize: "clamp(34px, 5vw, 76px)", lineHeight: 1.02, fontWeight: 300, color: "#efeaf6" }}
+            style={{ fontSize: "clamp(34px,5vw,76px)", lineHeight: 1.02, fontWeight: 300, color: "#efeaf6" }}
           >
             Wähle dein <span className="italic">Level.</span>
           </h2>
         </div>
 
         {/* Cards */}
-        <div data-cards className="grid grid-cols-1 items-start gap-5 md:grid-cols-3 md:gap-6">
+        <div
+          data-cards
+          className="grid grid-cols-1 items-start gap-5 md:grid-cols-3 md:gap-6"
+          style={{ perspective: "1200px" }}
+        >
           {PLANS.map((plan) => (
             <div
               key={plan.name}
               data-card
               {...(plan.featured ? { "data-card-featured": "" } : {})}
-              className="relative flex h-full flex-col overflow-hidden p-8 md:p-9"
+              className="relative flex h-full flex-col overflow-visible p-8 md:p-9"
               style={{
-                willChange: "transform",
+                willChange: "transform, box-shadow",
                 background: plan.featured
-                  ? "linear-gradient(180deg, rgba(33,20,64,0.92) 0%, rgba(14,10,22,0.96) 100%)"
-                  : "rgba(13,11,18,0.7)",
-                border: `1px solid ${plan.featured ? "rgba(122,76,255,0.55)" : "rgba(244,241,247,0.10)"}`,
-                boxShadow: plan.featured ? "0 30px 80px -40px rgba(122,76,255,0.55)" : "none",
+                  ? "linear-gradient(180deg, rgba(40,22,80,0.96) 0%, rgba(14,10,22,0.98) 100%)"
+                  : "rgba(13,11,18,0.80)",
+                border: `1px solid ${plan.featured ? "rgba(122,76,255,0.70)" : "rgba(244,241,247,0.10)"}`,
+                boxShadow: plan.featured
+                  ? "0 30px 80px -30px rgba(122,76,255,0.65)"
+                  : "none",
               }}
             >
               {plan.featured && (
@@ -222,25 +292,32 @@ export default function PricingSection() {
                   <div
                     data-aura
                     aria-hidden
-                    className="pointer-events-none absolute -inset-[55%] opacity-[0.20]"
+                    className="pointer-events-none absolute -inset-[50%]"
                     style={{
-                      background: "conic-gradient(from 0deg, transparent 0%, rgba(122,76,255,1) 18%, transparent 38%, rgba(180,130,255,0.9) 60%, transparent 82%)",
+                      opacity: 0.28,
+                      background:
+                        "conic-gradient(from 0deg, transparent 0%, rgba(122,76,255,1) 16%, rgba(180,130,255,0.9) 32%, transparent 48%, rgba(122,76,255,0.8) 65%, transparent 82%)",
                       borderRadius: "50%",
                       willChange: "transform",
+                      zIndex: -1,
                     }}
                   />
+                  {/* Top gradient line */}
                   <div
                     className="pointer-events-none absolute inset-x-0 top-0 h-px"
-                    style={{ background: "linear-gradient(90deg, transparent, rgba(122,76,255,0.9), transparent)" }}
-                  />
-                  <span
-                    className="absolute right-7 top-8"
                     style={{
-                      fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                      background: "linear-gradient(90deg, transparent, rgba(180,130,255,1), transparent)",
+                    }}
+                  />
+                  {/* BELIEBT badge */}
+                  <span
+                    className="absolute right-7 top-7"
+                    style={{
+                      fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                       fontSize: "9px",
                       letterSpacing: "0.28em",
                       fontWeight: 700,
-                      color: "#b79bff",
+                      color: "#c9b8ff",
                     }}
                   >
                     BELIEBT
@@ -251,7 +328,11 @@ export default function PricingSection() {
               {/* Name */}
               <h3
                 className="font-display mb-5"
-                style={{ fontSize: "clamp(26px, 2.6vw, 38px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}
+                style={{
+                  fontSize: "clamp(26px,2.6vw,38px)",
+                  letterSpacing: "-0.01em",
+                  color: "#f7f4fb",
+                }}
               >
                 {plan.name}
               </h3>
@@ -260,7 +341,12 @@ export default function PricingSection() {
               <div className="mb-8 flex items-end gap-1">
                 <span
                   className="font-serif-editorial"
-                  style={{ fontSize: "clamp(34px, 3.6vw, 52px)", lineHeight: 1, fontWeight: 300, color: "#efeaf6" }}
+                  style={{
+                    fontSize: "clamp(34px,3.6vw,52px)",
+                    lineHeight: 1,
+                    fontWeight: 300,
+                    color: "#efeaf6",
+                  }}
                 >
                   {plan.price}
                 </span>
@@ -278,7 +364,7 @@ export default function PricingSection() {
                     <Check featured={plan.featured} />
                     <span
                       style={{
-                        fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                        fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                         fontSize: "13.5px",
                         lineHeight: 1.4,
                         color: "rgba(244,241,247,0.74)",
@@ -294,10 +380,10 @@ export default function PricingSection() {
               <a
                 data-price-cta
                 href="#kontakt"
-                className="mt-auto inline-flex items-center justify-center gap-3 px-6 py-3.5 text-center transition-colors"
+                className="mt-auto inline-flex items-center justify-center gap-3 px-6 py-4 text-center"
                 style={{
-                  willChange: "transform",
-                  fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                  willChange: "transform, box-shadow",
+                  fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                   fontSize: "11px",
                   letterSpacing: "0.22em",
                   fontWeight: 700,
@@ -318,14 +404,14 @@ export default function PricingSection() {
         <p
           className="mx-auto mt-10 max-w-[760px] text-center"
           style={{
-            fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+            fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
             fontSize: "11px",
             lineHeight: 1.6,
-            color: "rgba(244,241,247,0.40)",
+            color: "rgba(244,241,247,0.38)",
           }}
         >
-          *In Verbindung mit einer 24-monatigen Mitgliedschaft. Zuzüglich einmaliger
-          Verwaltungsgebühr in Höhe von 49,90 € sowie einer jährlichen Hygienepauschale von 15 €.
+          *In Verbindung mit einer 24-monatigen Mitgliedschaft. Zuzüglich einmaliger Verwaltungsgebühr
+          in Höhe von 49,90 € sowie einer jährlichen Hygienepauschale von 15 €.
         </p>
       </div>
     </section>

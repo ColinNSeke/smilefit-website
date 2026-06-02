@@ -9,7 +9,8 @@ type Tile = {
   label: string;
   index: string;
   caption: string;
-  area: string; // grid placement classes
+  area: string;
+  wipeDir: string; // clip-path reveal direction
 };
 
 const TILES: Tile[] = [
@@ -19,6 +20,7 @@ const TILES: Tile[] = [
     index: "01",
     caption: "Hauptfläche · 2.200m²",
     area: "md:col-span-5 md:row-span-2",
+    wipeDir: "left",
   },
   {
     src: "/media/gym-05.jpg",
@@ -26,6 +28,7 @@ const TILES: Tile[] = [
     index: "02",
     caption: "Free Weights · Hardcore Area",
     area: "md:col-span-4",
+    wipeDir: "top",
   },
   {
     src: "/media/gym-06.jpg",
@@ -33,6 +36,7 @@ const TILES: Tile[] = [
     index: "03",
     caption: "Hammer Strength",
     area: "md:col-span-3 md:row-span-2",
+    wipeDir: "right",
   },
   {
     src: "/media/gym-04.jpg",
@@ -40,8 +44,17 @@ const TILES: Tile[] = [
     index: "04",
     caption: "Funktional · Conditioning",
     area: "md:col-span-4",
+    wipeDir: "bottom",
   },
 ];
+
+// Starting clipPath per wipe direction
+const WIPE_START: Record<string, string> = {
+  left:   "inset(0% 100% 0% 0%)",
+  right:  "inset(0% 0% 0% 100%)",
+  top:    "inset(0% 0% 100% 0%)",
+  bottom: "inset(100% 0% 0% 0%)",
+};
 
 export default function RaumeSection() {
   const root = useRef<HTMLElement | null>(null);
@@ -49,101 +62,142 @@ export default function RaumeSection() {
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isMobile = window.innerWidth < 768;
+
     const ctx = gsap.context(() => {
+      /* --- Reduced motion: show all instantly --- */
       if (reduce) {
-        gsap.set("[data-tile], [data-head], [data-tileimg], [data-tilelabel], [data-veil]", {
-          opacity: 1,
-          clipPath: "inset(0% 0%)",
-          scale: 1,
-          y: 0,
-        });
+        gsap.set("[data-tile],[data-head],[data-veil],[data-tilelabel]", { clearProps: "all" });
         gsap.set("[data-veil]", { opacity: 0 });
         return;
       }
 
-      // Heading reveal — strong upward + blur-to-sharp
-      gsap.set("[data-head]", { opacity: 0, y: 52, filter: "blur(8px)" });
+      /* =============================================
+         HEADING — heavy upward burst with blur
+      ============================================= */
+      gsap.set("[data-head]", { opacity: 0, y: 80, filter: "blur(14px)" });
       gsap.to("[data-head]", {
-        y: 0,
         opacity: 1,
+        y: 0,
         filter: "blur(0px)",
-        duration: 1.1,
+        duration: 1.2,
         ease: "power3.out",
-        stagger: 0.14,
-        scrollTrigger: { trigger: "[data-headwrap]", start: "top 82%" },
+        stagger: 0.15,
+        scrollTrigger: { trigger: "[data-headwrap]", start: "top 85%" },
+        onComplete: () => gsap.set("[data-head]", { clearProps: "filter" }),
       });
 
-      // Staggered tile mask-wipe reveals — images "open from darkness"
+      /* =============================================
+         TILES — each wipes in from a different side,
+         image opens from total darkness (veil lifts)
+      ============================================= */
       gsap.utils.toArray<HTMLElement>("[data-tile]").forEach((tile) => {
-        const img = tile.querySelector<HTMLElement>("[data-tileimg]");
-        const veil = tile.querySelector<HTMLElement>("[data-veil]");
+        const dir   = tile.dataset.wipe ?? "top";
+        const img   = tile.querySelector<HTMLElement>("[data-tileimg]");
+        const veil  = tile.querySelector<HTMLElement>("[data-veil]");
         const label = tile.querySelector<HTMLElement>("[data-tilelabel]");
 
-        const tl = gsap.timeline({ scrollTrigger: { trigger: tile, start: "top 88%" } });
-        tl.fromTo(
-          tile,
-          { clipPath: "inset(0% 0% 100% 0%)" },
-          { clipPath: "inset(0% 0% 0% 0%)", duration: 1.2, ease: "expo.out" },
-          0
-        );
-        if (img) tl.fromTo(img, { scale: 1.45 }, { scale: 1.0, duration: 1.5, ease: "expo.out" }, 0);
-        if (veil) tl.fromTo(veil, { opacity: 1 }, { opacity: 0, duration: 1.3, ease: "power2.out" }, 0.1);
-        if (label) tl.from(label, { y: 26, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.5);
+        // Set initial state
+        gsap.set(tile, { clipPath: WIPE_START[dir] });
+        if (img) gsap.set(img, { scale: 1.5 });
+        if (veil) gsap.set(veil, { opacity: 1 });
+        if (label) gsap.set(label, { opacity: 0, y: 32 });
 
-        if (img) {
+        const tl = gsap.timeline({
+          scrollTrigger: {
+            trigger: tile,
+            start: "top 90%",
+          },
+        });
+
+        // 1. Tile wipes open
+        tl.to(tile, {
+          clipPath: "inset(0% 0% 0% 0%)",
+          duration: 1.4,
+          ease: "expo.inOut",
+        }, 0);
+
+        // 2. Image scales down from oversized (opens from darkness)
+        if (img) tl.to(img, { scale: 1.0, duration: 1.8, ease: "expo.out" }, 0);
+
+        // 3. Darkness veil lifts — image emerges
+        if (veil) tl.to(veil, { opacity: 0, duration: 1.6, ease: "power2.out" }, 0.1);
+
+        // 4. Label rises in after image is revealed
+        if (label) tl.to(label, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 0.65);
+
+        // Parallax scroll through
+        if (img && !isMobile) {
           gsap.to(img, {
-            yPercent: 16,
+            yPercent: 18,
             ease: "none",
-            scrollTrigger: { trigger: tile, start: "top bottom", end: "bottom top", scrub: true },
+            scrollTrigger: {
+              trigger: tile,
+              start: "top bottom",
+              end: "bottom top",
+              scrub: true,
+            },
           });
         }
       });
 
-      // 3D tilt + image drift on hover (pointer devices)
-      if (window.matchMedia("(hover: hover)").matches) {
+      /* =============================================
+         TILE HOVER — 3D tilt + image drift + glow
+      ============================================= */
+      if (!isMobile && window.matchMedia("(hover: hover)").matches) {
         gsap.utils.toArray<HTMLElement>("[data-tile]").forEach((tile) => {
           const img = tile.querySelector<HTMLElement>("[data-tileimg]");
-          const qrx = gsap.quickTo(tile, "rotateX", { duration: 0.5, ease: "power2.out" });
-          const qry = gsap.quickTo(tile, "rotateY", { duration: 0.5, ease: "power2.out" });
-          gsap.set(tile, { transformPerspective: 900, transformOrigin: "center" });
+          const glowBorder = tile.querySelector<HTMLElement>("[data-glow-border]");
+          gsap.set(tile, { transformPerspective: 1000, transformOrigin: "center center" });
+
           const onMove = (e: MouseEvent) => {
-            const r = tile.getBoundingClientRect();
-            const nx = (e.clientX - r.left) / r.width - 0.5;
-            const ny = (e.clientY - r.top) / r.height - 0.5;
-            qry(nx * 9);
-            qrx(ny * -9);
-            if (img) gsap.to(img, { x: nx * -18, y: ny * -18, duration: 0.5, ease: "power2.out" });
+            const r  = tile.getBoundingClientRect();
+            const nx = (e.clientX - r.left)  / r.width  - 0.5;
+            const ny = (e.clientY - r.top)   / r.height - 0.5;
+
+            gsap.to(tile, { rotateY: nx * 14, rotateX: ny * -14, duration: 0.5, ease: "power2.out" });
+            if (img) gsap.to(img, { x: nx * -24, y: ny * -24, scale: 1.08, duration: 0.5, ease: "power2.out" });
+            if (glowBorder) gsap.to(glowBorder, { opacity: 1, duration: 0.3 });
           };
           const onLeave = () => {
-            qrx(0);
-            qry(0);
-            if (img) gsap.to(img, { x: 0, y: 0, duration: 0.6, ease: "power2.out" });
+            gsap.to(tile, { rotateY: 0, rotateX: 0, duration: 0.7, ease: "power2.out" });
+            if (img) gsap.to(img, { x: 0, y: 0, scale: 1.0, duration: 0.7, ease: "power2.out" });
+            if (glowBorder) gsap.to(glowBorder, { opacity: 0, duration: 0.4 });
           };
+
           tile.addEventListener("mousemove", onMove);
           tile.addEventListener("mouseleave", onLeave);
         });
       }
 
-      // Video interlude — scale-in reveal
-      gsap.fromTo(
-        "[data-interlude]",
-        { clipPath: "inset(14% 10% round 0px)", opacity: 0.5 },
-        {
-          clipPath: "inset(0% 0% round 0px)",
-          opacity: 1,
-          duration: 1.4,
-          ease: "power3.inOut",
-          scrollTrigger: { trigger: "[data-interlude]", start: "top 82%" },
-        }
-      );
+      /* =============================================
+         VIDEO INTERLUDE — massive letterbox open
+      ============================================= */
+      gsap.set("[data-interlude]", { clipPath: "inset(16% 12%)", opacity: 0, scale: 0.92 });
+      gsap.to("[data-interlude]", {
+        clipPath: "inset(0% 0%)",
+        opacity: 1,
+        scale: 1,
+        duration: 1.6,
+        ease: "expo.inOut",
+        scrollTrigger: { trigger: "[data-interlude]", start: "top 85%" },
+      });
+
+      // Video parallax text
+      gsap.from("[data-interlude-text]", {
+        y: 60,
+        opacity: 0,
+        filter: "blur(16px)",
+        duration: 1.2,
+        ease: "power3.out",
+        scrollTrigger: { trigger: "[data-interlude]", start: "top 70%" },
+        onComplete: () => gsap.set("[data-interlude-text]", { clearProps: "filter" }),
+      });
     }, root);
 
-    const refreshT = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    const t = setTimeout(() => ScrollTrigger.refresh(), 700);
     if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
-    return () => {
-      window.clearTimeout(refreshT);
-      ctx.revert();
-    };
+    return () => { clearTimeout(t); ctx.revert(); };
   }, []);
 
   return (
@@ -152,40 +206,39 @@ export default function RaumeSection() {
       id="raume"
       className="relative w-full overflow-hidden bg-[#07060b] py-24 text-[#f4f1f7] md:py-36"
     >
-      {/* Ambient violet wash */}
+      {/* Ambient wash */}
       <div
         className="pointer-events-none absolute inset-0 opacity-70"
         style={{
           background:
-            "radial-gradient(60% 50% at 12% 0%, rgba(95,48,195,0.10) 0%, transparent 60%), radial-gradient(50% 40% at 100% 100%, rgba(95,48,195,0.08) 0%, transparent 60%)",
+            "radial-gradient(60% 50% at 12% 0%, rgba(95,48,195,0.12) 0%, transparent 60%), radial-gradient(50% 40% at 100% 100%, rgba(95,48,195,0.10) 0%, transparent 60%)",
         }}
       />
 
       <div className="relative mx-auto max-w-[1320px] px-6 md:px-12">
-        {/* ===== Heading ===== */}
+        {/* HEADING */}
         <div data-headwrap className="mb-14 flex flex-col gap-8 md:mb-20 md:flex-row md:items-end md:justify-between">
           <div>
             <p
               data-head
               className="mb-5 flex items-center gap-3"
               style={{
-                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                 fontSize: "11px",
                 letterSpacing: "0.32em",
                 fontWeight: 600,
                 color: "rgba(244,241,247,0.55)",
               }}
             >
-              <span className="inline-block h-px w-8" style={{ background: "rgba(122,76,255,0.6)" }} />
+              <span className="inline-block h-px w-8" style={{ background: "rgba(122,76,255,0.8)" }} />
               RÄUME · ATMOSPHÄRE
             </p>
             <h2
               data-head
               className="font-serif-editorial"
-              style={{ fontSize: "clamp(38px, 5.6vw, 86px)", lineHeight: 1.0, fontWeight: 300, color: "#efeaf6" }}
+              style={{ fontSize: "clamp(38px,5.6vw,86px)", lineHeight: 1.0, fontWeight: 300, color: "#efeaf6" }}
             >
-              Der Raum
-              <br />
+              Der Raum<br />
               <span className="italic">trainiert mit.</span>
             </h2>
           </div>
@@ -193,58 +246,68 @@ export default function RaumeSection() {
             data-head
             className="max-w-[340px]"
             style={{
-              fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+              fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
               fontSize: "14px",
               lineHeight: 1.7,
-              fontWeight: 400,
               color: "rgba(244,241,247,0.60)",
             }}
           >
-            Atmosphäre für Leistung. Jede Zone in SmileFit ist auf Fokus, Kraft und
-            Conditioning ausgelegt — Training ohne Zufall.
+            Atmosphäre für Leistung. Jede Zone in SmileFit ist auf Fokus, Kraft und Conditioning ausgelegt.
           </p>
         </div>
 
-        {/* ===== Editorial gallery grid ===== */}
+        {/* GALLERY GRID */}
         <div className="grid grid-cols-1 gap-4 md:auto-rows-[230px] md:grid-cols-12 md:gap-5">
           {TILES.map((t) => (
             <article
               key={t.src}
               data-tile
+              data-wipe={t.wipeDir}
               className={`group relative overflow-hidden bg-[#0d0b12] ${t.area}`}
-              style={{ willChange: "clip-path" }}
+              style={{ willChange: "clip-path, transform" }}
             >
+              {/* Image */}
               <div
                 data-tileimg
                 className="absolute inset-[-8%] bg-cover bg-center"
                 style={{ backgroundImage: `url('${t.src}')`, willChange: "transform" }}
               />
-              {/* Darkness veil that lifts on reveal */}
+
+              {/* Dark veil — lifted during reveal */}
               <div
                 data-veil
                 className="pointer-events-none absolute inset-0 bg-[#050308]"
-                style={{ willChange: "opacity" }}
+                style={{ willChange: "opacity", zIndex: 1 }}
               />
+
               {/* Legibility grade */}
               <div
                 className="pointer-events-none absolute inset-0"
                 style={{
+                  zIndex: 2,
                   background:
-                    "linear-gradient(180deg, rgba(7,6,11,0.10) 0%, transparent 30%, rgba(7,6,11,0.20) 60%, rgba(7,6,11,0.86) 100%)",
+                    "linear-gradient(180deg, rgba(7,6,11,0.05) 0%, transparent 30%, rgba(7,6,11,0.25) 60%, rgba(7,6,11,0.88) 100%)",
                 }}
               />
-              {/* Violet edge on hover */}
+
+              {/* Hover purple border glow */}
               <div
-                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-                style={{ boxShadow: "inset 0 0 0 1px rgba(122,76,255,0.5)" }}
+                data-glow-border
+                className="pointer-events-none absolute inset-0 opacity-0"
+                style={{ zIndex: 3, boxShadow: "inset 0 0 0 2px rgba(122,76,255,0.75), inset 0 0 40px rgba(122,76,255,0.18)" }}
               />
+
               {/* Label */}
-              <div data-tilelabel className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6">
+              <div
+                data-tilelabel
+                className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6"
+                style={{ zIndex: 4 }}
+              >
                 <div>
                   <p
                     className="mb-1"
                     style={{
-                      fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                      fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                       fontSize: "10px",
                       letterSpacing: "0.28em",
                       fontWeight: 600,
@@ -255,14 +318,14 @@ export default function RaumeSection() {
                   </p>
                   <h3
                     className="font-display"
-                    style={{ fontSize: "clamp(22px, 2.2vw, 34px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}
+                    style={{ fontSize: "clamp(22px,2.2vw,34px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}
                   >
                     {t.label}
                   </h3>
                 </div>
                 <span
                   style={{
-                    fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                    fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                     fontSize: "11px",
                     letterSpacing: "0.2em",
                     fontWeight: 600,
@@ -276,15 +339,15 @@ export default function RaumeSection() {
           ))}
         </div>
 
-        {/* ===== Cinematic video interlude ===== */}
+        {/* VIDEO INTERLUDE */}
         <div
           data-interlude
-          className="relative mt-5 aspect-[21/9] w-full overflow-hidden bg-black md:mt-5"
-          style={{ willChange: "clip-path" }}
+          className="relative mt-5 aspect-[21/9] w-full overflow-hidden bg-black"
+          style={{ willChange: "clip-path, transform, opacity" }}
         >
           <video
             className="absolute inset-0 h-full w-full object-cover"
-            style={{ filter: "brightness(0.78) saturate(1.05)" }}
+            style={{ filter: "brightness(0.72) saturate(1.05)" }}
             src="/media/hero-b.mp4"
             autoPlay
             muted
@@ -294,24 +357,28 @@ export default function RaumeSection() {
           />
           <div
             className="pointer-events-none absolute inset-0"
-            style={{ background: "radial-gradient(90% 120% at 50% 50%, transparent 40%, rgba(7,6,11,0.7) 100%)" }}
+            style={{ background: "radial-gradient(90% 120% at 50% 50%, transparent 38%, rgba(7,6,11,0.75) 100%)" }}
           />
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <div
+            data-interlude-text
+            className="absolute inset-0 flex flex-col items-center justify-center text-center"
+            style={{ willChange: "transform, opacity" }}
+          >
             <p
               className="mb-3"
               style={{
-                fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif",
+                fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                 fontSize: "11px",
                 letterSpacing: "0.34em",
                 fontWeight: 600,
-                color: "rgba(244,241,247,0.62)",
+                color: "rgba(244,241,247,0.65)",
               }}
             >
               BUILT FOR FOCUS
             </p>
             <p
               className="font-serif-editorial px-6"
-              style={{ fontSize: "clamp(26px, 4vw, 60px)", lineHeight: 1.05, fontWeight: 300, color: "#f4f1f7" }}
+              style={{ fontSize: "clamp(26px,4vw,60px)", lineHeight: 1.05, fontWeight: 300, color: "#f4f1f7" }}
             >
               Atmosphäre für <span className="italic">Leistung.</span>
             </p>
