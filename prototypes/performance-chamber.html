@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SMILEFIT — Performance Chamber</title>
+<style>
+  :root {
+    --violet: #6a4cff;
+    --violet-soft: #8a74ff;
+    --cream: #f2efe6;
+    --void: #060608;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--void); color: var(--cream); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+
+  /* Scroll driver — gives us real scroll length to map progress onto. */
+  #scroll-space { height: 600vh; position: relative; }
+
+  /* Fixed canvas stage */
+  #stage {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(120% 90% at 50% 38%, #101015 0%, #0a0a0d 42%, #060608 78%);
+  }
+  canvas { display: block; }
+
+  /* ---- Minimal HUD (prototype only) ---- */
+  .hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+  .hud .corner {
+    position: absolute; font-size: 11px; letter-spacing: 0.28em;
+    text-transform: uppercase; color: rgba(242,239,230,0.55);
+    font-weight: 500;
+  }
+  .hud .tl { top: 28px; left: 34px; }
+  .hud .tl b { display: block; color: var(--cream); letter-spacing: 0.2em; font-size: 13px; }
+  .hud .tl span { color: var(--violet-soft); font-size: 10px; }
+  .hud .br { bottom: 28px; right: 34px; text-align: right; }
+
+  /* Stat markers — fade in during orbit phase */
+  .stat {
+    position: absolute; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  }
+  .stat .label { color: rgba(242,239,230,0.6); display: block; margin-bottom: 2px; }
+  .stat .val { color: var(--violet-soft); font-size: 22px; letter-spacing: 0.04em; font-weight: 600; }
+  .stat.s1 { top: 24%; left: 22%; }
+  .stat.s2 { top: 58%; left: 18%; }
+  .stat.s3 { top: 33%; right: 20%; }
+  .stat.s4 { top: 66%; right: 19%; }
+  .stat.show { opacity: 1; transform: translateY(0); }
+
+  /* Scroll cue */
+  .cue {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    z-index: 6; font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: rgba(242,239,230,0.4); display: flex; flex-direction: column;
+    align-items: center; gap: 10px; transition: opacity 0.5s ease;
+  }
+  .cue .track { width: 1px; height: 46px; background: rgba(242,239,230,0.12); overflow: hidden; position: relative; }
+  .cue .track i { position: absolute; top: 0; left: 0; right: 0; height: 30%; background: var(--violet-soft);
+    animation: cueRun 2.4s cubic-bezier(.65,0,.35,1) infinite; }
+  @keyframes cueRun { 0%{transform:translateY(-100%);opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{transform:translateY(220%);opacity:0} }
+
+  /* CTA — fixed, triggers activation pulse on hover */
+  .cta {
+    position: fixed; bottom: 30px; right: 34px; z-index: 7; pointer-events: auto;
+    border: 1px solid rgba(242,239,230,0.35); color: var(--cream);
+    padding: 13px 22px; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    background: transparent; cursor: pointer; overflow: hidden; position: fixed;
+    transition: border-color 0.4s ease, color 0.4s ease;
+  }
+  .cta:hover { border-color: var(--violet-soft); color: #fff; }
+
+  #loading {
+    position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: var(--void); color: rgba(242,239,230,0.5); font-size: 11px; letter-spacing: 0.3em;
+    text-transform: uppercase; transition: opacity 0.8s ease;
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="hud">
+    <div class="corner tl">
+      <b>SMILEFIT</b>
+      <span>ATHLETE_01 — ELITE PERFORMANCE</span>
+    </div>
+    <div class="corner br">PERFORMANCE CHAMBER / 2026</div>
+
+    <div class="stat s1"><span class="label">Strength</span><span class="val">92%</span></div>
+    <div class="stat s2"><span class="label">Focus</span><span class="val">96%</span></div>
+    <div class="stat s3"><span class="label">Power</span><span class="val">89%</span></div>
+    <div class="stat s4"><span class="label">Recovery</span><span class="val">85%</span></div>
+  </div>
+
+  <div class="cue"><span>Scroll</span><span class="track"><i></i></span></div>
+  <button class="cta" id="cta">Activate Session</button>
+
+  <div id="scroll-space"></div>
+  <div id="loading">Initialising Chamber</div>
+
+  <script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.169.0/build/three.module.js" } }
+  </script>
+
+  <script type="module">
+  import * as THREE from "three";
+
+  // ============================================================
+  //  SMILEFIT — Performance Chamber
+  //  Scroll-controlled cinematic Three.js prototype.
+  //  frozen weights → activation pulse → heavy orbit → opens up
+  // ============================================================
+
+  const stage = document.getElementById("stage");
+  const VIOLET = new THREE.Color(0x6a4cff);
+  const VIOLET_SOFT = new THREE.Color(0x8a74ff);
+
+  // ---------- Renderer ----------
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  stage.appendChild(renderer.domElement);
+
+  // ---------- Scene & fog ----------
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060608, 0.035);
+
+  // ---------- Camera ----------
+  const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
+  const CAM_BASE = new THREE.Vector3(0, 3.0, 17);
+  camera.position.copy(CAM_BASE);
+
+  // ============================================================
+  //  LIGHTING — white/silver rim + minimal violet accent
+  // ============================================================
+  const ambient = new THREE.AmbientLight(0x202028, 0.6);
+  scene.add(ambient);
+
+  // Key rim from behind-right (silver)
+  const rimKey = new THREE.SpotLight(0xdfe4ff, 140, 60, Math.PI / 7, 0.5, 1.4);
+  rimKey.position.set(7, 12, -6);
+  rimKey.target.position.set(0, 4, 0);
+  rimKey.castShadow = true;
+  rimKey.shadow.mapSize.set(2048, 2048);
+  rimKey.shadow.bias = -0.0004;
+  scene.add(rimKey, rimKey.target);
+
+  // Cool fill rim from left
+  const rimFill = new THREE.SpotLight(0xaab4d8, 70, 60, Math.PI / 6, 0.6, 1.5);
+  rimFill.position.set(-9, 9, -3);
+  rimFill.target.position.set(0, 4, 0);
+  scene.add(rimFill, rimFill.target);
+
+  // Soft frontal so silhouette reads (kept low → stays dark/dominant)
+  const front = new THREE.DirectionalLight(0x9aa0b5, 0.35);
+  front.position.set(0, 6, 14);
+  scene.add(front);
+
+  // Violet underglow accent (pulses with phases)
+  const violetGlow = new THREE.PointLight(0x6a4cff, 0.0, 30, 2.0);
+  violetGlow.position.set(0, 0.6, 0);
+  scene.add(violetGlow);
+
+  // Subtle top bounce
+  const topPulse = new THREE.PointLight(0xc8ccff, 0.5, 40, 2.0);
+  topPulse.position.set(0, 16, 2);
+  scene.add(topPulse);
+
+  // ============================================================
+  //  FLOOR — very dark reflective graphite
+  // ============================================================
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x07070a, roughness: 0.18, metalness: 0.9,
+    envMapIntensity: 0.4,
+  });
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(60, 96), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Simple gradient env so metals have something to reflect
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  const envGrad = new THREE.Mesh(
+    new THREE.SphereGeometry(50, 32, 32),
+    new THREE.MeshBasicMaterial({ side: THREE.BackSide, vertexColors: true })
+  );
+  {
+    const g = envGrad.geometry;
+    const pos = g.attributes.position, col = [];
+    const top = new THREE.Color(0x16161f), bot = new THREE.Color(0x050507);
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) / 50;
+      const c = bot.clone().lerp(top, THREE.MathUtils.clamp(y * 0.5 + 0.5, 0, 1));
+      col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  }
+  envScene.add(envGrad);
+  const envRT = pmrem.fromScene(envScene);
+  scene.environment = envRT.texture;
+
+  // ============================================================
+  //  ATHLETE — procedural dark statue silhouette
+  //  Built from primitives, capsule-based. Dark graphite, matte.
+  // ============================================================
+  const athlete = new THREE.Group();
+  const statueMat = new THREE.MeshStandardMaterial({
+    color: 0x0c0c10, roughness: 0.55, metalness: 0.35,
+    envMapIntensity: 0.7,
+  });
+
+  function limb(rTop, rBot, len, mat) {
+    // tapered capsule-ish using cylinder + spheres
+    const g = new THREE.Group();
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, 20), mat);
+    cyl.castShadow = cyl.receiveShadow = true;
+    g.add(cyl);
+    const s1 = new THREE.Mesh(new THREE.SphereGeometry(rTop, 16, 16), mat);
+    s1.position.y = len / 2; s1.castShadow = true; g.add(s1);
+    const s2 = new THREE.Mesh(new THREE.SphereGeometry(rBot, 16, 16), mat);
+    s2.position.y = -len / 2; s2.castShadow = true; g.add(s2);
+    return g;
+  }
+
+  // Torso (V-taper)
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.15, 2.6, 28), statueMat);
+  torso.scale.set(1.15, 1, 0.62);
+  torso.position.y = 6.0; torso.castShadow = torso.receiveShadow = true;
+  athlete.add(torso);
+
+  // Chest mass
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(1.18, 28, 24), statueMat);
+  chest.scale.set(1.25, 0.8, 0.7); chest.position.set(0, 6.9, 0.12);
+  chest.castShadow = true; athlete.add(chest);
+
+  // Waist / pelvis
+  const pelvis = new THREE.Mesh(new THREE.SphereGeometry(0.95, 24, 20), statueMat);
+  pelvis.scale.set(1.1, 0.8, 0.7); pelvis.position.y = 4.5;
+  pelvis.castShadow = true; athlete.add(pelvis);
+
+  // Neck + head
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.5, 16), statueMat);
+  neck.position.y = 7.55; neck.castShadow = true; athlete.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 28, 24), statueMat);
+  head.scale.set(0.9, 1.05, 0.95); head.position.y = 8.25;
+  head.castShadow = true; athlete.add(head);
+
+  // Shoulders
+  for (const sx of [-1, 1]) {
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 18), statueMat);
+    sh.position.set(sx * 1.35, 7.05, 0); sh.castShadow = true; athlete.add(sh);
+
+    // Upper arm angled out, lower arm down (relaxed power stance)
+    const up = limb(0.42, 0.34, 1.7, statueMat);
+    up.position.set(sx * 1.55, 6.3, 0.05);
+    up.rotation.z = sx * 0.22; up.castShadow = true; athlete.add(up);
+
+    const fore = limb(0.32, 0.24, 1.6, statueMat);
+    fore.position.set(sx * 1.95, 4.85, 0.18);
+    fore.rotation.z = sx * 0.1; athlete.add(fore);
+
+    const fist = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 14), statueMat);
+    fist.position.set(sx * 2.05, 4.0, 0.25); fist.castShadow = true; athlete.add(fist);
+  }
+
+  // Legs (slightly apart, grounded)
+  for (const lx of [-1, 1]) {
+    const thigh = limb(0.5, 0.4, 2.2, statueMat);
+    thigh.position.set(lx * 0.55, 3.2, 0);
+    thigh.rotation.z = lx * 0.04; athlete.add(thigh);
+
+    const shin = limb(0.36, 0.26, 2.1, statueMat);
+    shin.position.set(lx * 0.62, 1.05, 0.05); athlete.add(shin);
+
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 1.1), statueMat);
+    foot.position.set(lx * 0.62, 0.14, 0.22); foot.castShadow = true;
+    athlete.add(foot);
+  }
+  scene.add(athlete);
+
+  // ============================================================
+  //  HOLOGRAPHIC TORSO RINGS (thin, violet, fade in @0.15)
+  // ============================================================
+  const torsoRings = new THREE.Group();
+  torsoRings.position.y = 6.0;
+  function holoRing(r, tube) {
+    const m = new THREE.Mesh(
+      new THREE.TorusGeometry(r, tube, 8, 120),
+      new THREE.MeshBasicMaterial({ color: 0x8a74ff, transparent: true, opacity: 0 })
+    );
+    m.rotation.x = Math.PI / 2;
+    return m;
+  }
+  const tr1 = holoRing(1.7, 0.008);
+  const tr2 = holoRing(1.95, 0.006); tr2.position.y = 0.9;
+  const tr3 = holoRing(1.95, 0.006); tr3.position.y = -0.9;
+  torsoRings.add(tr1, tr2, tr3);
+  scene.add(torsoRings);
+
+  // ============================================================
+  //  FLOOR RING (activates @0.15) — thin purple ring + segments
+  // ============================================================
+  const floorRing = new THREE.Group();
+  const baseRing = new THREE.Mesh(
+    new THREE.TorusGeometry(4.2, 0.02, 10, 160),
+    new THREE.MeshBasicMaterial({ color: 0x6a4cff, transparent: true, opacity: 0 })
+  );
+  baseRing.rotation.x = -Math.PI / 2;
+  baseRing.position.y = 0.04;
+  floorRing.add(baseRing);
+
+  // Pulsing segment arcs
+  const segs = [];
+  for (let i = 0; i < 6; i++) {
+    const seg = new THREE.Mesh(
+      new THREE.TorusGeometry(4.2, 0.04, 10, 60, Math.PI / 5),
+      new THREE.MeshBasicMaterial({ color: 0x8a74ff, transparent: true, opacity: 0 })
+    );
+    seg.rotation.x = -Math.PI / 2;
+    seg.rotation.z = (i / 6) * Math.PI * 2;
+    seg.position.y = 0.05;
+    segs.push(seg); floorRing.add(seg);
+  }
+  scene.add(floorRing);
+
+  // Vertical scan wave (thin disc that travels feet→head @0.15)
+  const scan = new THREE.Mesh(
+    new THREE.RingGeometry(0.1, 2.4, 64),
+    new THREE.MeshBasicMaterial({ color: 0x8a74ff, transparent: true, opacity: 0, side: THREE.DoubleSide })
+  );
+  scan.rotation.x = -Math.PI / 2;
+  scene.add(scan);
+
+  // ============================================================
+  //  SUSPENDED WEIGHTS — plates, dumbbells, kettlebell, barbell
+  //  Each stores rest transform + orbit params for heavy motion.
+  // ============================================================
+  const weights = [];
+  const weightGroup = new THREE.Group();
+  scene.add(weightGroup);
+
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x101014, roughness: 0.42, metalness: 0.85, envMapIntensity: 0.9 });
+  const chromeMat = new THREE.MeshStandardMaterial({ color: 0x6a6a72, roughness: 0.18, metalness: 1.0, envMapIntensity: 1.1 });
+
+  function makePlate(radius) {
+    const g = new THREE.Group();
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.22, 48), ironMat);
+    disc.rotation.x = Math.PI / 2; disc.castShadow = true; disc.receiveShadow = true;
+    g.add(disc);
+    // beveled outer lip
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(radius - 0.02, 0.05, 12, 48), ironMat);
+    g.add(lip);
+    // center hub (chrome)
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.22, radius * 0.22, 0.26, 32), chromeMat);
+    hub.rotation.x = Math.PI / 2; g.add(hub);
+    const hole = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.22, 0.03, 10, 32), chromeMat);
+    g.add(hole);
+    return g;
+  }
+
+  function makeDumbbell() {
+    const g = new THREE.Group();
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5, 20), chromeMat);
+    bar.rotation.z = Math.PI / 2; bar.castShadow = true; g.add(bar);
+    for (const s of [-1, 1]) {
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.55, 6), ironMat);
+      head.rotation.z = Math.PI / 2; head.position.x = s * 0.85;
+      head.castShadow = true; head.receiveShadow = true; g.add(head);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.42, 0.12, 6), ironMat);
+      cap.rotation.z = Math.PI / 2; cap.position.x = s * 1.13; g.add(cap);
+    }
+    return g;
+  }
+
+  function makeKettlebell() {
+    const g = new THREE.Group();
+    const bell = new THREE.Mesh(new THREE.SphereGeometry(0.62, 28, 24), ironMat);
+    bell.scale.set(1, 0.92, 1); bell.castShadow = true; bell.receiveShadow = true; g.add(bell);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.16, 28), ironMat);
+    base.position.y = -0.5; g.add(base);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.075, 14, 32, Math.PI), ironMat);
+    handle.position.y = 0.6; handle.castShadow = true; g.add(handle);
+    for (const s of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.34, 12), ironMat);
+      post.position.set(s * 0.32, 0.4, 0); g.add(post);
+    }
+    return g;
+  }
+
+  function makeBarbell() {
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 6.4, 24), chromeMat);
+    shaft.rotation.z = Math.PI / 2; shaft.castShadow = true; g.add(shaft);
+    for (const s of [-1, 1]) {
+      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.1, 24), chromeMat);
+      sleeve.rotation.z = Math.PI / 2; sleeve.position.x = s * 2.6; g.add(sleeve);
+      for (let p = 0; p < 2; p++) {
+        const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.16, 40), ironMat);
+        plate.rotation.z = Math.PI / 2; plate.position.x = s * (2.2 + p * 0.22);
+        plate.castShadow = true; g.add(plate);
+      }
+    }
+    return g;
+  }
+
+  // Place weights in a frozen suspended arrangement around the athlete.
+  // restPos = frozen tension position; orbit params drive the heavy orbit.
+  function addWeight(mesh, restPos, opts = {}) {
+    mesh.position.copy(restPos);
+    mesh.rotation.set(
+      opts.rx ?? Math.random() * Math.PI,
+      opts.ry ?? Math.random() * Math.PI,
+      opts.rz ?? Math.random() * Math.PI
+    );
+    weightGroup.add(mesh);
+    const radius = Math.hypot(restPos.x, restPos.z);
+    const angle = Math.atan2(restPos.z, restPos.x);
+    weights.push({
+      mesh,
+      rest: restPos.clone(),
+      restRot: mesh.rotation.clone(),
+      orbitRadius: radius,
+      orbitAngle: angle,
+      orbitHeight: restPos.y,
+      orbitSpeed: (opts.heavy ? 0.06 : 0.11) * (opts.dir ?? 1),
+      ellipse: opts.ellipse ?? 0.62,        // z-squash → elliptical
+      spinAxis: new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize(),
+      spinSpeed: (opts.heavy ? 0.12 : 0.3) + Math.random()*0.15,
+      depth: restPos.z,                      // for mouse parallax weighting
+      phase: Math.random() * Math.PI * 2,
+      bobAmp: opts.heavy ? 0.12 : 0.22,
+      vibration: 0,
+    });
+  }
+
+  // Plates (various sizes) — ringed around at mid height
+  addWeight(makePlate(1.25), new THREE.Vector3(-6.2, 5.0, 1.5), { dir: 1, heavy: true, ellipse: 0.6 });
+  addWeight(makePlate(0.95), new THREE.Vector3(5.8, 6.4, -1.0), { dir: -1, ellipse: 0.7 });
+  addWeight(makePlate(1.1),  new THREE.Vector3(-5.2, 2.4, -2.2), { dir: 1, heavy: true, ellipse: 0.55 });
+  addWeight(makePlate(0.8),  new THREE.Vector3(6.6, 3.0, 1.8),  { dir: -1, ellipse: 0.72 });
+  addWeight(makePlate(1.0),  new THREE.Vector3(-7.0, 7.6, -0.5), { dir: 1, ellipse: 0.65 });
+
+  // Dumbbells
+  addWeight(makeDumbbell(), new THREE.Vector3(-3.4, 7.2, 2.6), { dir: -1, ellipse: 0.68 });
+  addWeight(makeDumbbell(), new THREE.Vector3(4.0, 4.4, 2.4),  { dir: 1, ellipse: 0.6 });
+  addWeight(makeDumbbell(), new THREE.Vector3(3.2, 8.0, -1.4), { dir: -1, ellipse: 0.7 });
+
+  // Kettlebell (single, heavy inertia)
+  const kb = makeKettlebell();
+  addWeight(kb, new THREE.Vector3(-4.6, 1.6, 2.8), { dir: 1, heavy: true, ellipse: 0.5 });
+
+  // Barbell (large element, far + slow)
+  const bb = makeBarbell();
+  addWeight(bb, new THREE.Vector3(6.4, 8.6, -2.6), { dir: -1, heavy: true, ellipse: 0.8, rx: 0.1, ry: 0.6, rz: 0.2 });
+
+  // ============================================================
+  //  PARTICLES — fine suspended dust
+  // ============================================================
+  const pCount = 700;
+  const pGeo = new THREE.BufferGeometry();
+  const pPos = new Float32Array(pCount * 3);
+  const pSpeed = new Float32Array(pCount);
+  for (let i = 0; i < pCount; i++) {
+    pPos[i*3]   = (Math.random()-0.5) * 36;
+    pPos[i*3+1] = Math.random() * 18;
+    pPos[i*3+2] = (Math.random()-0.5) * 30;
+    pSpeed[i] = 0.05 + Math.random() * 0.15;
+  }
+  pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+  const pMat = new THREE.PointsMaterial({
+    color: 0xb8b8c8, size: 0.035, transparent: true, opacity: 0.5,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const particles = new THREE.Points(pGeo, pMat);
+  scene.add(particles);
+
+  // ============================================================
+  //  SCROLL PROGRESS + MOUSE PARALLAX
+  // ============================================================
+  let scrollProg = 0;          // 0..1 eased
+  let scrollTarget = 0;
+  const maxScroll = () => document.getElementById("scroll-space").offsetHeight - innerHeight;
+  addEventListener("scroll", () => { scrollTarget = THREE.MathUtils.clamp(scrollY / maxScroll(), 0, 1); });
+
+  const mouse = new THREE.Vector2(0, 0);
+  const mouseTarget = new THREE.Vector2(0, 0);
+  addEventListener("mousemove", (e) => {
+    mouseTarget.x = (e.clientX / innerWidth - 0.5);
+    mouseTarget.y = (e.clientY / innerHeight - 0.5);
+  });
+
+  // ---------- CTA activation pulse ----------
+  let ctaPulse = 0;   // decays 1→0
+  document.getElementById("cta").addEventListener("mouseenter", () => { ctaPulse = 1; });
+
+  // ---------- Phase helper ----------
+  // smooth 0→1 ramp between [a,b]
+  const ramp = (p, a, b) => THREE.MathUtils.clamp((p - a) / (b - a), 0, 1);
+  const easeIO = (t) => t * t * (3 - 2 * t);
+
+  // Stat DOM
+  const statEls = [...document.querySelectorAll(".stat")];
+  const cueEl = document.querySelector(".cue");
+
+  // ============================================================
+  //  ANIMATE
+  // ============================================================
+  const clock = new THREE.Clock();
+  let orbitAccum = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const t = clock.elapsedTime;
+
+    // Eased scroll + mouse
+    scrollProg += (scrollTarget - scrollProg) * 0.06;
+    mouse.x += (mouseTarget.x - mouse.x) * 0.05;
+    mouse.y += (mouseTarget.y - mouse.y) * 0.05;
+    const p = scrollProg;
+
+    // ---- Phase ramps ----
+    const pActivate = easeIO(ramp(p, 0.15, 0.30));   // floor ring, scan, torso rings
+    const pUnlock   = easeIO(ramp(p, 0.35, 0.55));   // weights unlock & drift
+    const pOrbit    = easeIO(ramp(p, 0.60, 0.78));   // elliptical orbit + HUD
+    const pExpand   = easeIO(ramp(p, 0.85, 1.00));   // orbit expands, HUD fades, opens up
+
+    // Accumulate orbit time only as motion unlocks (heavy, controlled)
+    orbitAccum += dt * (pUnlock * 0.4 + pOrbit * 1.0);
+    ctaPulse = Math.max(0, ctaPulse - dt * 1.6);
+    const pulse = ctaPulse * ctaPulse;
+
+    // ===== CAMERA: subtle breathing + parallax + push-in =====
+    const breath = Math.sin(t * 0.4) * 0.18;
+    const pushIn = pOrbit * 2.2 - pExpand * 1.0;   // in during orbit, slight back as it opens
+    const camX = mouse.x * (1.6 + pExpand * 0.6);
+    const camY = CAM_BASE.y + breath + mouse.y * -0.8 + pActivate * 0.4;
+    camera.position.x += (camX - camera.position.x) * 0.05;
+    camera.position.y += (camY - camera.position.y) * 0.05;
+    camera.position.z += ((CAM_BASE.z - pushIn) - camera.position.z) * 0.04;
+    camera.lookAt(0, 4.4 + pExpand * 0.4, 0);
+
+    // ===== ATHLETE: stable, faint breathing only =====
+    athlete.position.y = Math.sin(t * 0.5) * 0.05;
+    athlete.rotation.y = mouse.x * 0.06;   // very subtle turn toward cursor
+
+    // ===== LIGHT PULSE =====
+    topPulse.intensity = 0.5 + Math.sin(t * 1.2) * 0.08;
+    violetGlow.intensity = pActivate * 0.9 + pOrbit * 0.6 + pulse * 2.2;
+    violetGlow.color.copy(VIOLET).lerp(VIOLET_SOFT, pulse);
+    rimKey.intensity = 140 + Math.sin(t * 0.8) * 6;
+
+    // ===== ACTIVATION: floor ring + segments =====
+    baseRing.material.opacity = pActivate * 0.7 + pulse * 0.3;
+    baseRing.scale.setScalar(1 + pulse * 0.04);
+    segs.forEach((s, i) => {
+      const w = Math.sin(t * 1.5 + i * 1.1) * 0.5 + 0.5;
+      s.material.opacity = pActivate * (0.2 + w * 0.6 * (0.4 + pOrbit)) + pulse * 0.6;
+      s.rotation.z += dt * 0.05 * (1 + pOrbit);
+    });
+    floorRing.rotation.y += dt * 0.04 * (0.4 + pOrbit);
+
+    // ===== ACTIVATION: vertical scan wave (feet→head once) =====
+    if (pActivate > 0.001 && pActivate < 0.999) {
+      const sy = pActivate * 8.6;
+      scan.position.y = sy;
+      const edge = Math.sin(pActivate * Math.PI);          // bright in middle of travel
+      scan.material.opacity = edge * 0.5;
+      scan.scale.setScalar(1 + Math.sin(pActivate * Math.PI) * 0.2);
+    } else {
+      scan.material.opacity *= 0.9;
+    }
+
+    // ===== ACTIVATION: torso holographic rings =====
+    const trOp = pActivate * 0.55 + pulse * 0.4;
+    tr1.material.opacity = trOp * (0.7 + Math.sin(t*2)*0.15);
+    tr2.material.opacity = trOp * (0.5 + Math.sin(t*2+1)*0.15);
+    tr3.material.opacity = trOp * (0.5 + Math.sin(t*2+2)*0.15);
+    torsoRings.rotation.y += dt * (0.2 + pOrbit * 0.5);
+    tr2.position.y = 0.9 + Math.sin(t * 0.8) * 0.05;
+    tr3.position.y = -0.9 - Math.sin(t * 0.8) * 0.05;
+
+    // ===== WEIGHTS: frozen → unlock → heavy elliptical orbit =====
+    weights.forEach((w) => {
+      const m = w.mesh;
+
+      // Orbit target position (elliptical, squashed in z)
+      const ang = w.orbitAngle + orbitAccum * w.orbitSpeed;
+      const orbitR = w.orbitRadius * (1 + pExpand * 0.45);    // expands outward @0.85
+      const ox = Math.cos(ang) * orbitR;
+      const oz = Math.sin(ang) * orbitR * w.ellipse;
+      const oy = w.orbitHeight + Math.sin(orbitAccum * w.orbitSpeed * 2 + w.phase) * w.bobAmp * (0.5 + pOrbit);
+
+      // Blend factor: how much we've left the frozen rest pose.
+      // unlock gives slight drift, orbit gives full orbital placement.
+      const orbitMix = pUnlock * 0.25 + pOrbit * 0.75 + pExpand * 0.0;
+      const mix = THREE.MathUtils.clamp(orbitMix, 0, 1);
+
+      // Frozen drift: tiny float around rest while still "locked"
+      const driftX = Math.sin(t * 0.4 + w.phase) * 0.08 * pUnlock;
+      const driftY = Math.cos(t * 0.35 + w.phase) * 0.10 * pUnlock;
+
+      const targetX = THREE.MathUtils.lerp(w.rest.x + driftX, ox, mix);
+      const targetY = THREE.MathUtils.lerp(w.rest.y + driftY, oy, mix);
+      const targetZ = THREE.MathUtils.lerp(w.rest.z, oz, mix);
+
+      // Mouse parallax — foreground (high z) reacts more than background
+      const depthW = THREE.MathUtils.mapLinear(w.depth, -3, 3, 0.3, 1.4);
+      const paraX = mouse.x * depthW * 1.1;
+      const paraY = mouse.y * depthW * -0.7;
+
+      // Vibration from CTA pulse (tiny, decays)
+      const vib = pulse * 0.06 * depthW;
+      const vx = (Math.random()-0.5) * vib;
+      const vy = (Math.random()-0.5) * vib;
+
+      m.position.x += (targetX + paraX + vx - m.position.x) * 0.06;
+      m.position.y += (targetY + paraY + vy - m.position.y) * 0.06;
+      m.position.z += (targetZ - m.position.z) * 0.06;
+
+      // Rotation: frozen → slow heavy spin. Heavier items spin slower.
+      const spinAmt = (pUnlock * 0.3 + pOrbit * 1.0) * w.spinSpeed * dt;
+      m.rotateOnAxis(w.spinAxis, spinAmt);
+    });
+
+    // ===== PARTICLES drift =====
+    const pp = pGeo.attributes.position.array;
+    for (let i = 0; i < pCount; i++) {
+      pp[i*3+1] += pSpeed[i] * dt * (0.4 + pActivate * 0.6);
+      if (pp[i*3+1] > 18) pp[i*3+1] = 0;
+      pp[i*3] += Math.sin(t * 0.2 + i) * 0.0008;
+    }
+    pGeo.attributes.position.needsUpdate = true;
+    pMat.opacity = 0.3 + pActivate * 0.25 + pulse * 0.2;
+
+    // ===== HUD: stats appear @orbit, fade @expand =====
+    const showStats = pOrbit > 0.25 && pExpand < 0.6;
+    statEls.forEach((el, i) => {
+      const on = showStats && pOrbit > 0.25 + i * 0.06;
+      el.classList.toggle("show", on);
+    });
+    cueEl.style.opacity = (1 - ramp(p, 0.05, 0.18)).toString();
+
+    renderer.render(scene, camera);
+  }
+
+  // ---------- Resize ----------
+  addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // ---------- Boot ----------
+  const loading = document.getElementById("loading");
+  setTimeout(() => { loading.style.opacity = "0"; setTimeout(() => loading.remove(), 800); }, 600);
+  animate();
+  </script>
+</body>
+</html>
