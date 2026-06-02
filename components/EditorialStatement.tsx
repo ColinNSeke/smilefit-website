@@ -53,22 +53,22 @@ export default function EditorialStatement() {
   return (
     <section
       ref={root}
-      className="relative w-full overflow-hidden bg-[#f2efe6] px-6 py-32 text-[#050505] md:px-10 md:py-48"
+      className="relative w-full overflow-hidden bg-[#08080a] px-6 py-32 text-[#f2efe6] md:px-10 md:py-48"
     >
       {/* blueprint thin lines */}
       <div className="pointer-events-none absolute inset-0">
         <div
           data-blueprint
-          className="absolute left-0 right-0 top-[18%] h-px bg-[#050505]/15"
+          className="absolute left-0 right-0 top-[18%] h-px bg-[#f2efe6]/15"
         />
         <div
           data-blueprint
-          className="absolute left-0 right-0 top-[82%] h-px bg-[#050505]/15"
+          className="absolute left-0 right-0 top-[82%] h-px bg-[#f2efe6]/15"
         />
-        <div className="absolute right-10 top-[18%] hidden font-mono-label text-[#050505]/40 md:block">
+        <div className="absolute right-10 top-[18%] hidden font-mono-label text-[#f2efe6]/40 md:block">
           ⟶ SYSTEM / 2026
         </div>
-        <div className="absolute left-10 top-[82%] hidden font-mono-label text-[#050505]/40 md:block">
+        <div className="absolute left-10 top-[82%] hidden font-mono-label text-[#f2efe6]/40 md:block">
           MANIFEST / SMILEFIT
         </div>
       </div>
@@ -76,7 +76,7 @@ export default function EditorialStatement() {
       <div className="relative">
         <span
           data-statement-meta
-          className="font-mono-label text-[#050505]/60"
+          className="font-mono-label text-[#f2efe6]/60"
         >
           MANIFEST — 02
         </span>
@@ -92,7 +92,7 @@ export default function EditorialStatement() {
         </h2>
 
         <div className="mt-16 flex flex-col items-start justify-between gap-6 md:mt-24 md:flex-row md:items-end">
-          <div data-statement-meta className="font-mono-label text-[#050505]/70">
+          <div data-statement-meta className="font-mono-label text-[#f2efe6]/70">
             BUILT DIFFERENT.
             <br />
             NO SOFT REPS.
@@ -100,7 +100,7 @@ export default function EditorialStatement() {
           <a
             data-statement-meta
             href="#kontakt"
-            className="group inline-flex items-center gap-3 border-b border-[#050505] pb-1 font-mono-label"
+            className="group inline-flex items-center gap-3 border-b border-[#f2efe6] pb-1 font-mono-label"
           >
             <span>Enter Different. Leave Stronger.</span>
             <span aria-hidden className="transition-transform group-hover:translate-x-1">
