@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import SplitType from "split-type";
@@ -74,10 +74,5 @@ export default function RevealHeading({
     };
   }, [children, stagger]);
 
-  const Tag = as as React.ElementType;
-  return (
-    <Tag ref={ref} className={className} style={style}>
-      {children}
-    </Tag>
-  );
+  return React.createElement(as, { ref, className, style }, children);
 }

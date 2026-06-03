@@ -91,7 +91,6 @@ export default function IntroSequence() {
         <svg
           viewBox="0 0 600 120"
           width="min(70vw, 600px)"
-          height="auto"
           aria-label="SMILEFIT"
           style={{ overflow: "visible" }}
         >
