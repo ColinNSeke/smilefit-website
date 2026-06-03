@@ -4,15 +4,7 @@ import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion } from "@/lib/lenis";
-
-type Tile = { src: string; label: string; index: string; caption: string; span: "short" | "tall" | "wide" };
-
-const TILES: Tile[] = [
-  { src: "/media/gym-02.jpg",  label: "System",      index: "01", caption: "Hauptfläche · 2.200m²",        span: "short" },
-  { src: "/media/gym-05.jpg",  label: "Training",    index: "02", caption: "Free Weights · Hardcore Area", span: "tall"  },
-  { src: "/media/gym-06.jpg",  label: "Kraft",       index: "03", caption: "Hammer Strength",              span: "short" },
-  { src: "/media/gym-04.jpg",  label: "Performance", index: "04", caption: "Funktional · Conditioning",    span: "wide"  },
-];
+import RevealHeading from "./RevealHeading";
 
 export default function RaumeSection() {
   const root = useRef<HTMLElement | null>(null);
@@ -22,28 +14,39 @@ export default function RaumeSection() {
     const reduce = prefersReducedMotion();
 
     const ctx = gsap.context(() => {
-      /* Heading */
-      if (!reduce) {
-        gsap.set("[data-head]", { opacity: 0, y: 70, filter: "blur(12px)" });
-        gsap.to("[data-head]", {
-          opacity: 1, y: 0, filter: "blur(0px)", duration: 1.1, ease: "power3.out", stagger: 0.14,
-          scrollTrigger: { trigger: "[data-headwrap]", start: "top 85%" },
-          onComplete: () => gsap.set("[data-head]", { clearProps: "filter" }),
-        });
-      }
-
-      /* Card reveal on scroll */
       const cards = gsap.utils.toArray<HTMLElement>("[data-card]");
-      if (!reduce) {
-        cards.forEach((card, i) => {
-          gsap.fromTo(card,
-            { opacity: 0, y: 24 },
-            { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", delay: i * 0.1,
-              scrollTrigger: { trigger: card, start: "top 88%" } });
+      if (reduce) {
+        gsap.set("[data-space-meta],[data-card],[data-interlude],[data-interlude-text]", {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          clipPath: "inset(0% 0%)",
         });
+        return;
       }
 
-      /* Video interlude */
+      gsap.from("[data-space-meta]", {
+        opacity: 0,
+        y: 24,
+        duration: 0.7,
+        ease: "expo.out",
+        stagger: 0.08,
+        scrollTrigger: { trigger: "[data-headwrap]", start: "top 75%" },
+      });
+
+      gsap.fromTo(
+        cards,
+        { opacity: 0, y: 24 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.7,
+          ease: "expo.out",
+          stagger: 0.1,
+          scrollTrigger: { trigger: "[data-space-cards]", start: "top 88%" },
+        },
+      );
+
       gsap.set("[data-interlude]", { clipPath: "inset(16% 12%)", opacity: 0, scale: 0.92 });
       gsap.to("[data-interlude]", {
         clipPath: "inset(0% 0%)", opacity: 1, scale: 1, duration: 1.6,
@@ -70,24 +73,24 @@ export default function RaumeSection() {
       <div className="relative mx-auto max-w-[1320px] px-6 pt-24 md:px-12 md:pt-36">
         <div data-headwrap className="mb-14 flex flex-col gap-8 md:mb-16 md:flex-row md:items-end md:justify-between">
           <div>
-            <p data-head className="mb-5 flex items-center gap-3"
+            <p data-space-meta className="mb-5 flex items-center gap-3"
               style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", letterSpacing: "0.32em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>
               <span className="inline-block h-px w-8" style={{ background: "rgba(122,76,255,0.8)" }} />
               RÄUME · ATMOSPHÄRE
             </p>
-            <h2 data-head className="font-serif-editorial"
+            <RevealHeading as="h2" className="font-serif-editorial"
               style={{ fontSize: "clamp(38px,5.6vw,86px)", lineHeight: 1.0, fontWeight: 300, color: "#efeaf6" }}>
               Der Raum<br /><span className="italic">trainiert mit.</span>
-            </h2>
+            </RevealHeading>
           </div>
-          <p data-head className="max-w-[340px]"
+          <p data-space-meta className="max-w-[340px]"
             style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "14px", lineHeight: 1.7, color: "rgba(244,241,247,0.60)" }}>
             Atmosphäre für Leistung. Jede Zone in SmileFit ist auf Fokus, Kraft und Conditioning ausgelegt.
           </p>
         </div>
 
         {/* Vertical CSS Grid */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(12, 1fr)", paddingBottom: "80px" }}>
+        <div data-space-cards className="grid gap-4" style={{ gridTemplateColumns: "repeat(12, 1fr)", paddingBottom: "80px" }}>
           {/* Row 1: three cards */}
           {/* SYSTEM — col 1–4 */}
           <article data-card

@@ -144,6 +144,19 @@ video {
   max-width: 100%;
 }
 
+@keyframes smilefitHeroFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.smilefit-hero-fade {
+  animation: smilefitHeroFade 0.8s ease-out 0.1s both;
+}
+
 /* Hero — scroll cue indicator (subtle looping descent) */
 @keyframes scrollCueLoop {
   0% {
@@ -172,6 +185,10 @@ video {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .smilefit-hero-fade {
+    animation: none;
+  }
+
   .animate-scroll-cue {
     animation: none;
   }
@@ -226,7 +243,14 @@ video {
   to   { background-position: 0 -240px, 40px -360px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-particles { animation: none !important; }
+  .hero-particles,
+  .footer-particles {
+    animation: none !important;
+  }
+
+  .custom-cursor {
+    display: none !important;
+  }
 }
 
 /* Outer glow lives on the clipped text via drop-shadow; flicker animates it. */

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion, isMobile } from "@/lib/lenis";
+import MagneticButton from "./MagneticButton";
+import RevealHeading from "./RevealHeading";
 
 const PricingScene = dynamic(() => import("./PricingScene"), { ssr: false });
 
@@ -68,98 +70,155 @@ export default function PricingSection() {
   const root = useRef<HTMLElement | null>(null);
   const pinWrap = useRef<HTMLDivElement | null>(null);
   const sceneProgress = useRef(0);
+  const [sceneMounted, setSceneMounted] = useState(false);
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     const reduce = prefersReducedMotion();
     const mobile = isMobile();
+    const cleanups: Array<() => void> = [];
+    if (reduce || mobile) sceneProgress.current = 1;
 
     const ctx = gsap.context(() => {
       const cards = gsap.utils.toArray<HTMLElement>("[data-card]");
+      const countedPrices = new WeakSet<HTMLElement>();
 
-      /* ── Price count-up on first visibility ── */
-      cards.forEach((card) => {
-        const el = card.querySelector<HTMLElement>("[data-price-val]");
-        if (!el) return;
-        const target = parseFloat(el.dataset.target || "0");
-        if (reduce) { el.textContent = fmt(target); return; }
-        const obj = { v: 0 };
-        ScrollTrigger.create({
-          trigger: card,
-          start: "top 85%",
-          once: true,
-          onEnter: () =>
-            gsap.to(obj, { v: target, duration: 0.8, ease: "expo.out",
-              onUpdate: () => { el.textContent = fmt(obj.v); } }),
-        });
+      ScrollTrigger.create({
+        trigger: root.current,
+        start: "top 150%",
+        once: true,
+        onEnter: () => setSceneMounted(true),
       });
 
-      if (reduce) {
-        gsap.set("[data-card]", { clearProps: "all", opacity: 1, y: 0 });
-        return;
-      }
+      const countPrice = (card: HTMLElement) => {
+        const el = card.querySelector<HTMLElement>("[data-price-val]");
+        if (!el || countedPrices.has(el)) return;
+        countedPrices.add(el);
+        const target = parseFloat(el.dataset.target || "0");
+        el.textContent = fmt(0);
+        const obj = { v: 0 };
+        gsap.to(obj, {
+          v: target,
+          duration: 0.8,
+          ease: "expo.out",
+          onUpdate: () => { el.textContent = fmt(obj.v); },
+        });
+      };
 
-      /* ── Pinned choreography (desktop) ── */
-      if (!mobile && pinWrap.current) {
-        gsap.set(cards, { opacity: 0, y: 50 });
+      if (reduce) {
+        gsap.fromTo(
+          cards,
+          { opacity: 0 },
+          {
+            opacity: 1,
+            duration: 0.35,
+            ease: "power1.out",
+            stagger: 0.08,
+            scrollTrigger: { trigger: "[data-cards]", start: "top 88%" },
+          },
+        );
+      } else if (!mobile && pinWrap.current) {
+        gsap.set(cards, { opacity: 0, y: 40 });
 
         const tl = gsap.timeline({
           scrollTrigger: {
             trigger: pinWrap.current,
             start: "top top",
-            end: "+=150%",
+            end: () => `+=${window.innerHeight * 1.5}`,
             scrub: 0.6,
             pin: true,
             anticipatePin: 1,
+            invalidateOnRefresh: true,
             onUpdate: (self) => { sceneProgress.current = self.progress; },
           },
         });
-        // 0–33: basic, 33–66: premium (+plates), 66–100: tageskarte
-        tl.to(cards[0], { opacity: 1, y: 0, ease: "power2.out" }, 0.05);
-        tl.to(cards[1], { opacity: 1, y: 0, ease: "power2.out" }, 0.4);
-        tl.to(cards[2], { opacity: 1, y: 0, ease: "power2.out" }, 0.72);
-        tl.to({}, { duration: 0.1 }); // tail
+        tl
+          .to(cards[0], { opacity: 1, y: 0, duration: 0.25, ease: "expo.out" }, 0.04)
+          .call(() => countPrice(cards[0]), undefined, 0.04)
+          .to(cards[1], { opacity: 1, y: 0, duration: 0.25, ease: "expo.out" }, 0.37)
+          .call(() => countPrice(cards[1]), undefined, 0.37)
+          .to(cards[2], { opacity: 1, y: 0, duration: 0.25, ease: "expo.out" }, 0.70)
+          .call(() => countPrice(cards[2]), undefined, 0.70)
+          .to({}, { duration: 0.05 }, 0.95);
       } else {
-        // mobile: simple staggered reveal, no pin
         gsap.set(cards, { opacity: 0, y: 40 });
-        gsap.to(cards, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out", stagger: 0.12,
-          scrollTrigger: { trigger: "[data-cards]", start: "top 86%" } });
+        gsap.to(cards, {
+          opacity: 1,
+          y: 0,
+          duration: 0.9,
+          ease: "expo.out",
+          stagger: 0.12,
+          scrollTrigger: { trigger: "[data-cards]", start: "top 86%" },
+        });
+        cards.forEach((card) => {
+          ScrollTrigger.create({
+            trigger: card,
+            start: "top 85%",
+            once: true,
+            onEnter: () => countPrice(card),
+          });
+        });
       }
 
-      /* ── Heading reveal ── */
-      gsap.set("[data-phead]", { opacity: 0, y: 50 });
-      gsap.to("[data-phead]", { opacity: 1, y: 0, duration: 1.0, ease: "power3.out", stagger: 0.12,
-        scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 85%" } });
+      if (!reduce) {
+        gsap.from("[data-price-meta]", {
+          opacity: 0,
+          y: 20,
+          duration: 0.7,
+          ease: "expo.out",
+          scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 75%" },
+        });
+      }
 
-      /* ── Hover lift (no pulsing glow) ── */
-      if (!mobile) {
+      if (!mobile && !reduce) {
         cards.forEach((card) => {
           const featured = card.hasAttribute("data-card-featured");
-          const onEnter = () => gsap.to(card, { y: -8, z: 40, duration: 0.4, ease: "power2.out",
-            boxShadow: featured
-              ? "0 30px 70px -30px rgba(122,76,255,0.55), 0 0 1px rgba(180,140,255,0.9)"
-              : "0 30px 70px -30px rgba(0,0,0,0.65)" });
-          const onLeave = () => gsap.to(card, { y: 0, z: 0, duration: 0.5, ease: "power2.out" });
+          const border = card.querySelector<HTMLElement>("[data-card-border]");
+          const onEnter = () => {
+            gsap.to(card, {
+              y: -8,
+              z: 40,
+              duration: 0.4,
+              ease: "power2.out",
+              boxShadow: featured
+                ? "0 34px 80px -28px rgba(122,76,255,0.58)"
+                : "0 34px 80px -28px rgba(0,0,0,0.72)",
+            });
+            if (border) gsap.to(border, { opacity: 1, duration: 0.35, ease: "power2.out" });
+          };
+          const onLeave = () => {
+            gsap.to(card, {
+              y: 0,
+              z: 0,
+              duration: 0.5,
+              ease: "power2.out",
+              boxShadow: "0 0 0 rgba(0,0,0,0)",
+            });
+            if (border) {
+              gsap.to(border, {
+                opacity: featured ? 0.72 : 0.38,
+                duration: 0.45,
+                ease: "power2.out",
+              });
+            }
+          };
           card.addEventListener("mouseenter", onEnter);
           card.addEventListener("mouseleave", onLeave);
-        });
-
-        /* magnetic price CTAs */
-        gsap.utils.toArray<HTMLElement>("[data-price-cta]").forEach((btn) => {
-          const onMove = (e: MouseEvent) => {
-            const r = btn.getBoundingClientRect();
-            gsap.to(btn, { x: (e.clientX - (r.left + r.width / 2)) * 0.35, y: (e.clientY - (r.top + r.height / 2)) * 0.35, duration: 0.3, ease: "power2.out" });
-          };
-          const onLeave = () => gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: "elastic.out(1,0.5)" });
-          btn.addEventListener("mousemove", onMove as EventListener);
-          btn.addEventListener("mouseleave", onLeave);
+          cleanups.push(() => {
+            card.removeEventListener("mouseenter", onEnter);
+            card.removeEventListener("mouseleave", onLeave);
+          });
         });
       }
     }, root);
 
     const t = setTimeout(() => ScrollTrigger.refresh(), 700);
     if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
-    return () => { clearTimeout(t); ctx.revert(); };
+    return () => {
+      cleanups.forEach((cleanup) => cleanup());
+      clearTimeout(t);
+      ctx.revert();
+    };
   }, []);
 
   return (
@@ -168,23 +227,23 @@ export default function PricingSection() {
       <div ref={pinWrap} className="relative flex min-h-screen w-full flex-col justify-center py-24 md:py-28">
         {/* WebGL barbell behind the cards */}
         <div className="pointer-events-none absolute inset-0 z-0 opacity-90">
-          <PricingScene progressRef={sceneProgress} paused={prefersReducedMotion() || isMobile()} />
+          {sceneMounted && <PricingScene progressRef={sceneProgress} />}
         </div>
-        {/* readability scrim */}
+        {/* Subtle linear scrim keeps glass cards readable without a radial glow. */}
         <div className="pointer-events-none absolute inset-0 z-0"
-          style={{ background: "radial-gradient(120% 90% at 50% 50%, transparent 30%, rgba(7,6,11,0.55) 75%, rgba(7,6,11,0.9) 100%)" }} />
+          style={{ background: "linear-gradient(180deg, rgba(7,6,11,0.3) 0%, rgba(7,6,11,0.08) 48%, rgba(7,6,11,0.46) 100%)" }} />
 
         <div className="relative z-10 mx-auto w-full max-w-[1320px] px-6 md:px-12">
           <div data-pheadwrap className="mb-12 text-center md:mb-16">
-            <p data-phead className="mb-5"
+            <p data-price-meta className="mb-5"
               style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px",
                 letterSpacing: "0.32em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>
               MITGLIEDSCHAFT · PRIME ACCESS
             </p>
-            <h2 data-phead className="font-serif-editorial mx-auto max-w-[800px]"
+            <RevealHeading as="h2" className="font-serif-editorial mx-auto max-w-[800px]"
               style={{ fontSize: "clamp(34px,5vw,76px)", lineHeight: 1.02, fontWeight: 300, color: "#efeaf6" }}>
               Wähle dein <span className="italic">Level.</span>
-            </h2>
+            </RevealHeading>
           </div>
 
           <div data-cards className="grid grid-cols-1 items-start gap-5 md:grid-cols-3 md:gap-6"
@@ -195,6 +254,7 @@ export default function PricingSection() {
                 className="relative flex h-full flex-col p-8 md:p-9"
                 style={{
                   willChange: "transform, box-shadow",
+                  transformStyle: "preserve-3d",
                   borderRadius: "2px",
                   background: plan.featured ? "rgba(28,18,52,0.55)" : "rgba(13,11,18,0.45)",
                   backdropFilter: "blur(40px) saturate(140%)",
@@ -206,6 +266,22 @@ export default function PricingSection() {
                   backgroundOrigin: "border-box",
                   backgroundClip: "padding-box, border-box",
                 }}>
+                <div
+                  data-card-border
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    border: "1px solid transparent",
+                    borderRadius: "2px",
+                    background: plan.featured
+                      ? "linear-gradient(135deg, rgba(212,194,255,0.95), rgba(122,76,255,0.28) 52%, rgba(255,255,255,0.08)) border-box"
+                      : "linear-gradient(135deg, rgba(255,255,255,0.58), rgba(255,255,255,0.08) 52%, rgba(122,76,255,0.18)) border-box",
+                    WebkitMask: "linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)",
+                    WebkitMaskComposite: "xor",
+                    maskComposite: "exclude",
+                    opacity: plan.featured ? 0.72 : 0.38,
+                  }}
+                />
                 {plan.featured && (
                   <span className="absolute right-7 top-7"
                     style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "9px",
@@ -241,7 +317,7 @@ export default function PricingSection() {
                   ))}
                 </ul>
 
-                <a data-price-cta data-cursor-cta href="#kontakt"
+                <MagneticButton href="#kontakt" cursorLabel="JOIN"
                   className="mt-auto inline-flex items-center justify-center gap-3 px-6 py-4 text-center"
                   style={{ willChange: "transform", fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif",
                     fontSize: "11px", letterSpacing: "0.22em", fontWeight: 700, textTransform: "uppercase",
@@ -249,7 +325,7 @@ export default function PricingSection() {
                     background: plan.featured ? "#c9b8ff" : "transparent",
                     border: plan.featured ? "1px solid #c9b8ff" : "1px solid rgba(244,241,247,0.4)" }}>
                   Jetzt anmelden <span aria-hidden>→</span>
-                </a>
+                </MagneticButton>
               </div>
             ))}
           </div>
