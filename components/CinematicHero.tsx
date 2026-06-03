@@ -8,15 +8,23 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { prefersReducedMotion, isMobile } from "@/lib/lenis";
 
 const HeroScene = dynamic(() => import("./HeroScene"), { ssr: false });
+const BirdsLogo = dynamic(() => import("./BirdsLogo"), { ssr: false });
 
 const NAV = ["Programme", "Über uns", "Mitgliedschaft", "Coaching", "Kontakt"] as const;
 
 /* ─── Split text into character spans (headline reveal) ─── */
 function SplitChars({ text, baseDelay = 0 }: { text: string; baseDelay?: number }) {
+  let ci = 0;
+  const words = text.split(" ");
   return (
     <>
-      {text.split("").map((char, i) => (
-        <span key={i} className="inline-block overflow-hidden" aria-hidden style={{ verticalAlign: "top" }}>
+      {words.map((word, wi) => (
+        <span key={wi} className="inline whitespace-nowrap">
+          <span className="inline-block whitespace-nowrap" style={{ verticalAlign: "top" }}>
+          {word.split("").map((char) => {
+            const i = ci++;
+            return (
+              <span key={i} className="inline-block overflow-hidden" aria-hidden style={{ verticalAlign: "top" }}>
           <motion.span
             className="inline-block"
             initial={{ y: "110%" }}
@@ -26,6 +34,11 @@ function SplitChars({ text, baseDelay = 0 }: { text: string; baseDelay?: number 
           >
             {char === " " ? " " : char}
           </motion.span>
+        </span>
+              );
+          })}
+          </span>
+          {wi < words.length - 1 ? <span style={{ display: "inline-block", width: "0.26em" }} aria-hidden /> : null}
         </span>
       ))}
     </>
@@ -129,10 +142,11 @@ export default function CinematicHero() {
 
     const ctx = gsap.context(() => {
       if (reduced) {
-        gsap.set("[data-eyebrow],[data-cta],[data-brandmark],[data-navitem],[data-scrollcue]", { opacity: 1, y: 0 });
+        gsap.set("[data-eyebrow],[data-support],[data-cta],[data-brandmark],[data-navitem],[data-scrollcue]", { opacity: 1, y: 0 });
         return;
       }
       gsap.set("[data-eyebrow]", { opacity: 0, y: 24, filter: "blur(8px)" });
+      gsap.set("[data-support]", { opacity: 0, y: 24, filter: "blur(8px)" });
       gsap.set("[data-cta]", { opacity: 0, y: 40, filter: "blur(8px)" });
       gsap.set("[data-brandmark]", { opacity: 0, y: -16 });
       gsap.set("[data-navitem]", { opacity: 0, y: -12 });
@@ -144,11 +158,13 @@ export default function CinematicHero() {
       tl
         .to("[data-brandmark]", { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 0)
         .to("[data-navitem]", { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", stagger: 0.06 }, 0.05)
-        .to("[data-eyebrow]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out",
+        .to("[data-eyebrow]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out", stagger: 0.1,
             onComplete: () => gsap.set("[data-eyebrow]", { clearProps: "filter" }) }, 0.4)
+        .to("[data-support]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out",
+            onComplete: () => gsap.set("[data-support]", { clearProps: "filter" }) }, 1.4)
         .to("[data-cta]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "expo.out",
-            onComplete: () => gsap.set("[data-cta]", { clearProps: "filter" }) }, 1.5)
-        .to("[data-scrollcue]", { opacity: 1, duration: 0.8 }, 2.0);
+            onComplete: () => gsap.set("[data-cta]", { clearProps: "filter" }) }, 1.7)
+        .to("[data-scrollcue]", { opacity: 1, duration: 0.8 }, 2.2);
 
       gsap.timeline({
         scrollTrigger: { trigger: root.current, start: "top top", end: "bottom top", scrub: 0.5 },
@@ -173,11 +189,6 @@ export default function CinematicHero() {
     if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
     return () => { clearTimeout(refreshT); cleanups.forEach((c) => c()); ctx.revert(); };
   }, [reduced]);
-
-  const line1 = "YOU'RE NOT";
-  const line2 = "DONE YET.";
-  const line1Delay = 0.75;
-  const line2Delay = line1Delay + line1.length * 0.025 + 0.08;
 
   return (
     <section
@@ -247,27 +258,40 @@ export default function CinematicHero() {
       </header>
 
       {/* COPY */}
-      <div data-copy className="absolute inset-y-0 left-0 z-[10] flex max-w-[860px] flex-col justify-center px-6 md:px-12 lg:px-20"
+      <div data-copy className="absolute inset-y-0 left-0 z-[10] flex max-w-[760px] flex-col justify-center px-6 md:px-12 lg:px-20"
         style={{ willChange: "transform, opacity" }}>
-        <p data-eyebrow className="mb-7 flex items-center gap-3"
-          style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "clamp(10px,1.0vw,13px)",
-            letterSpacing: "0.28em", fontWeight: 600, color: "rgba(244,241,247,0.80)" }}>
-          <span className="inline-block h-px w-8" style={{ background: "rgba(122,76,255,0.8)" }} />
-          BRING BACK YOUR PRIME, ONE MORE TIME.
+        {/* 1 — hairline rule */}
+        <div data-eyebrow className="mb-5 h-px w-10" style={{ background: "#EDEAE3" }} />
+
+        {/* 2 — micro-label */}
+        <p data-eyebrow className="mb-7"
+          style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px",
+            letterSpacing: "0.30em", fontWeight: 600, textTransform: "uppercase", color: "rgba(237,234,227,0.5)" }}>
+          SmileFit · Stuttgart
         </p>
 
-        <h1 className="font-display"
-          style={{ fontSize: "clamp(52px,8.5vw,124px)", lineHeight: 0.88, letterSpacing: "-0.03em", color: "#f7f4fb" }}
-          aria-label={`${line1} ${line2}`}>
-          <span className="block whitespace-nowrap">
-            {reveal || reduced ? <SplitChars text={line1} baseDelay={reduced ? 0 : line1Delay} /> : null}
-          </span>
-          <span className="block whitespace-nowrap">
-            {reveal || reduced ? <SplitChars text={line2} baseDelay={reduced ? 0 : line2Delay} /> : null}
-          </span>
+        {/* 3 — main quote (the lead) */}
+        <h1 className="font-serif-editorial"
+          style={{ fontStyle: "italic", fontWeight: 400, fontSize: "clamp(44px,4.8vw,88px)",
+            lineHeight: 1.05, letterSpacing: "-0.005em", color: "#EDEAE3", maxWidth: "620px" }}
+          aria-label="Bring back your prime, one more time.">
+          {reveal || reduced ? <SplitChars text="Bring back your prime, one more time." baseDelay={reduced ? 0 : 0.55} /> : null}
         </h1>
 
-        <div data-cta className="mt-11 flex items-center gap-6 md:mt-14" style={{ willChange: "transform, opacity" }}>
+        {/* 4 — supporting assertion */}
+        <p data-support className="font-display"
+          style={{ marginTop: "24px", fontSize: "clamp(18px,1.4vw,24px)", lineHeight: 1.1,
+            letterSpacing: "0.04em", color: "rgba(237,234,227,0.85)" }}>
+          You&rsquo;re not done yet.
+        </p>
+
+        {/* 5 — birds canvas zone (contained) */}
+        <div className="w-full" style={{ maxWidth: "620px", height: "clamp(180px,22vh,280px)", marginTop: "56px", marginBottom: "40px" }}>
+          <BirdsLogo progressRef={heroProgress} />
+        </div>
+
+        {/* 6 — CTA */}
+        <div data-cta className="flex items-center gap-6" style={{ willChange: "transform, opacity" }}>
           <a ref={cta} data-cursor-cta href="#mitgliedschaft"
             className="group relative inline-flex items-center gap-4 overflow-hidden border px-9 py-5"
             style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", fontWeight: 700,
