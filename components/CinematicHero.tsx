@@ -82,7 +82,7 @@ function HeroCursor({ heroRef }: { heroRef: React.RefObject<HTMLElement | null> 
       style={{ top: 0, left: 0 }}
       animate={{
         width: size, height: size, borderRadius: "50%",
-        backgroundColor: isRing ? "transparent" : "#f4f1f7",
+        backgroundColor: isRing ? "rgba(244,241,247,0)" : "rgba(244,241,247,1)",
         border: isRing ? "1.5px solid #f4f1f7" : "none",
         mixBlendMode: "difference",
       }}

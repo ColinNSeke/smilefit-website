@@ -80,16 +80,27 @@ export default function FooterInfo() {
         // 4. CTA button
         .to("[data-footer-cta]", { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 0.9);
 
-      // WORDMARK — massive clip reveal
+      // WORDMARK — stroke draws in left → right, then tilts on scroll-past
       gsap.fromTo(
         "[data-bigmark]",
-        { clipPath: "inset(0% 0% 100% 0%)", y: 30 },
+        { clipPath: "inset(0% 100% 0% 0%)" },
         {
           clipPath: "inset(0% 0% 0% 0%)",
-          y: 0,
           duration: 1.4,
           ease: "expo.out",
-          scrollTrigger: { trigger: "[data-bigmark]", start: "top 94%" },
+          scrollTrigger: { trigger: "[data-bigmark]", start: "top 90%" },
+        }
+      );
+      // read-from-below tilt (max 4°) as it leaves the viewport
+      gsap.fromTo(
+        "[data-bigmark]",
+        { rotateX: 0 },
+        {
+          rotateX: 4,
+          ease: "none",
+          transformPerspective: 900,
+          transformOrigin: "center bottom",
+          scrollTrigger: { trigger: "[data-bigmark]", start: "top 60%", end: "bottom top", scrub: 0.6 },
         }
       );
 
