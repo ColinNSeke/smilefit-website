@@ -3,93 +3,57 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { prefersReducedMotion, isMobile } from "@/lib/lenis";
+import { prefersReducedMotion } from "@/lib/lenis";
 
-type Tile = { src: string; label: string; index: string; caption: string };
+type Tile = { src: string; label: string; index: string; caption: string; span: "short" | "tall" | "wide" };
 
 const TILES: Tile[] = [
-  { src: "/media/gym-02.jpg", label: "System", index: "01", caption: "Hauptfläche · 2.200m²" },
-  { src: "/media/gym-05.jpg", label: "Training", index: "02", caption: "Free Weights · Hardcore Area" },
-  { src: "/media/gym-06.jpg", label: "Kraft", index: "03", caption: "Hammer Strength" },
-  { src: "/media/gym-04.jpg", label: "Performance", index: "04", caption: "Funktional · Conditioning" },
+  { src: "/media/gym-02.jpg",  label: "System",      index: "01", caption: "Hauptfläche · 2.200m²",        span: "short" },
+  { src: "/media/gym-05.jpg",  label: "Training",    index: "02", caption: "Free Weights · Hardcore Area", span: "tall"  },
+  { src: "/media/gym-06.jpg",  label: "Kraft",       index: "03", caption: "Hammer Strength",              span: "short" },
+  { src: "/media/gym-04.jpg",  label: "Performance", index: "04", caption: "Funktional · Conditioning",    span: "wide"  },
 ];
 
 export default function RaumeSection() {
   const root = useRef<HTMLElement | null>(null);
-  const pin = useRef<HTMLDivElement | null>(null);
-  const track = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
     const reduce = prefersReducedMotion();
-    const mobile = isMobile();
 
     const ctx = gsap.context(() => {
       /* Heading */
       if (!reduce) {
         gsap.set("[data-head]", { opacity: 0, y: 70, filter: "blur(12px)" });
-        gsap.to("[data-head]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 1.1, ease: "power3.out",
-          stagger: 0.14, scrollTrigger: { trigger: "[data-headwrap]", start: "top 85%" },
-          onComplete: () => gsap.set("[data-head]", { clearProps: "filter" }) });
+        gsap.to("[data-head]", {
+          opacity: 1, y: 0, filter: "blur(0px)", duration: 1.1, ease: "power3.out", stagger: 0.14,
+          scrollTrigger: { trigger: "[data-headwrap]", start: "top 85%" },
+          onComplete: () => gsap.set("[data-head]", { clearProps: "filter" }),
+        });
       }
 
-      const panels = gsap.utils.toArray<HTMLElement>("[data-hpanel]");
-
-      /* ── Horizontal pinned scroll (desktop only) ── */
-      if (!reduce && !mobile && track.current && pin.current) {
-        const getAmount = () => (track.current ? track.current.scrollWidth - window.innerWidth : 0);
-
-        const tween = gsap.to(track.current, { x: () => -getAmount(), ease: "none" });
-
-        ScrollTrigger.create({
-          trigger: pin.current,
-          start: "top top",
-          end: () => "+=" + getAmount(),
-          pin: true,
-          scrub: 1,
-          animation: tween,
-          invalidateOnRefresh: true,
-          anticipatePin: 1,
-        });
-
-        // each image scales 0.9 → 1 as it reaches center; label fades when centered
-        panels.forEach((panel) => {
-          const img = panel.querySelector<HTMLElement>("[data-tileimg]");
-          const label = panel.querySelector<HTMLElement>("[data-tilelabel]");
-          if (img)
-            gsap.fromTo(img, { scale: 0.9 }, {
-              scale: 1, ease: "none",
-              scrollTrigger: { trigger: panel, containerAnimation: tween, start: "left right", end: "center center", scrub: true },
-            });
-          if (label)
-            gsap.fromTo(label, { opacity: 0, y: 24 }, {
-              opacity: 1, y: 0, ease: "none",
-              scrollTrigger: { trigger: panel, containerAnimation: tween, start: "left 70%", end: "center center", scrub: true },
-            });
-        });
-      } else if (!reduce) {
-        // mobile / reduced-motion fallback: simple vertical reveal
-        panels.forEach((panel) => {
-          const img = panel.querySelector<HTMLElement>("[data-tileimg]");
-          gsap.fromTo(panel, { opacity: 0, y: 40 }, {
-            opacity: 1, y: 0, duration: 0.9, ease: "power3.out",
-            scrollTrigger: { trigger: panel, start: "top 85%" },
-          });
-          if (img)
-            gsap.fromTo(img, { scale: 1.2 }, {
-              scale: 1, ease: "none",
-              scrollTrigger: { trigger: panel, start: "top bottom", end: "bottom top", scrub: true },
-            });
+      /* Card reveal on scroll */
+      const cards = gsap.utils.toArray<HTMLElement>("[data-card]");
+      if (!reduce) {
+        cards.forEach((card, i) => {
+          gsap.fromTo(card,
+            { opacity: 0, y: 24 },
+            { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", delay: i * 0.1,
+              scrollTrigger: { trigger: card, start: "top 88%" } });
         });
       }
 
       /* Video interlude */
       gsap.set("[data-interlude]", { clipPath: "inset(16% 12%)", opacity: 0, scale: 0.92 });
-      gsap.to("[data-interlude]", { clipPath: "inset(0% 0%)", opacity: 1, scale: 1, duration: 1.6,
-        ease: "expo.inOut", scrollTrigger: { trigger: "[data-interlude]", start: "top 85%" } });
-      gsap.from("[data-interlude-text]", { y: 60, opacity: 0, filter: "blur(16px)", duration: 1.2,
-        ease: "power3.out", scrollTrigger: { trigger: "[data-interlude]", start: "top 70%" },
-        onComplete: () => gsap.set("[data-interlude-text]", { clearProps: "filter" }) });
+      gsap.to("[data-interlude]", {
+        clipPath: "inset(0% 0%)", opacity: 1, scale: 1, duration: 1.6,
+        ease: "expo.inOut", scrollTrigger: { trigger: "[data-interlude]", start: "top 85%" },
+      });
+      gsap.from("[data-interlude-text]", {
+        y: 60, opacity: 0, filter: "blur(16px)", duration: 1.2, ease: "power3.out",
+        scrollTrigger: { trigger: "[data-interlude]", start: "top 70%" },
+        onComplete: () => gsap.set("[data-interlude-text]", { clearProps: "filter" }),
+      });
     }, root);
 
     const t = setTimeout(() => ScrollTrigger.refresh(), 700);
@@ -121,35 +85,83 @@ export default function RaumeSection() {
             Atmosphäre für Leistung. Jede Zone in SmileFit ist auf Fokus, Kraft und Conditioning ausgelegt.
           </p>
         </div>
-      </div>
 
-      {/* Horizontal gallery (pinned on desktop) */}
-      <div ref={pin} className="relative w-full overflow-hidden md:h-screen">
-        <div ref={track}
-          className="flex flex-col gap-6 px-6 pb-24 md:h-full md:flex-row md:items-center md:gap-8 md:px-[8vw] md:pb-0">
-          {TILES.map((t) => (
-            <article key={t.src} data-hpanel
-              className="group relative shrink-0 overflow-hidden bg-[#0d0b12] aspect-[4/5] w-full md:aspect-auto md:h-[68vh] md:w-[58vw] lg:w-[46vw]"
-              style={{ willChange: "transform" }}>
-              <div data-tileimg className="absolute inset-[-6%] bg-cover bg-center"
-                style={{ backgroundImage: `url('${t.src}')`, willChange: "transform" }} />
-              <div className="pointer-events-none absolute inset-0"
-                style={{ background: "linear-gradient(180deg, rgba(7,6,11,0.05) 0%, transparent 30%, rgba(7,6,11,0.25) 60%, rgba(7,6,11,0.88) 100%)" }} />
-              <div data-tilelabel data-cursor-figure className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-7">
-                <div>
-                  <p className="mb-1" style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "10px", letterSpacing: "0.28em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>{t.caption}</p>
-                  <h3 className="font-display" style={{ fontSize: "clamp(22px,2.2vw,38px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}>{t.label}</h3>
-                </div>
-                <span style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", letterSpacing: "0.2em", fontWeight: 600, color: "rgba(244,241,247,0.40)" }}>/ {t.index}</span>
+        {/* Vertical CSS Grid */}
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(12, 1fr)", paddingBottom: "80px" }}>
+          {/* Row 1: three cards */}
+          {/* SYSTEM — col 1–4 */}
+          <article data-card
+            className="group relative col-span-12 overflow-hidden bg-[#0d0b12] md:col-span-4"
+            style={{ aspectRatio: "3/4" }}>
+            <div className="absolute inset-[-6%] bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              style={{ backgroundImage: "url('/media/gym-02.jpg')" }} />
+            <div className="pointer-events-none absolute inset-0"
+              style={{ background: "linear-gradient(180deg, transparent 40%, rgba(7,6,11,0.90) 100%)" }} />
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6">
+              <div>
+                <p className="mb-1" style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "10px", letterSpacing: "0.28em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>Hauptfläche · 2.200m²</p>
+                <h3 className="font-display" style={{ fontSize: "clamp(22px,2.2vw,34px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}>System</h3>
               </div>
-            </article>
-          ))}
+              <span style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", letterSpacing: "0.2em", fontWeight: 600, color: "rgba(244,241,247,0.40)" }}>/ 01</span>
+            </div>
+          </article>
+
+          {/* TRAINING — col 5–8 */}
+          <article data-card
+            className="group relative col-span-12 overflow-hidden bg-[#0d0b12] md:col-span-4"
+            style={{ aspectRatio: "4/5" }}>
+            <div className="absolute inset-[-6%] bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              style={{ backgroundImage: "url('/media/gym-05.jpg')" }} />
+            <div className="pointer-events-none absolute inset-0"
+              style={{ background: "linear-gradient(180deg, transparent 40%, rgba(7,6,11,0.90) 100%)" }} />
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6">
+              <div>
+                <p className="mb-1" style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "10px", letterSpacing: "0.28em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>Free Weights · Hardcore Area</p>
+                <h3 className="font-display" style={{ fontSize: "clamp(22px,2.2vw,34px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}>Training</h3>
+              </div>
+              <span style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", letterSpacing: "0.2em", fontWeight: 600, color: "rgba(244,241,247,0.40)" }}>/ 02</span>
+            </div>
+          </article>
+
+          {/* KRAFT — col 9–12 */}
+          <article data-card
+            className="group relative col-span-12 overflow-hidden bg-[#0d0b12] md:col-span-4"
+            style={{ aspectRatio: "3/4" }}>
+            <div className="absolute inset-[-6%] bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              style={{ backgroundImage: "url('/media/gym-06.jpg')" }} />
+            <div className="pointer-events-none absolute inset-0"
+              style={{ background: "linear-gradient(180deg, transparent 40%, rgba(7,6,11,0.90) 100%)" }} />
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-6">
+              <div>
+                <p className="mb-1" style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "10px", letterSpacing: "0.28em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>Hammer Strength</p>
+                <h3 className="font-display" style={{ fontSize: "clamp(22px,2.2vw,34px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}>Kraft</h3>
+              </div>
+              <span style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", letterSpacing: "0.2em", fontWeight: 600, color: "rgba(244,241,247,0.40)" }}>/ 03</span>
+            </div>
+          </article>
+
+          {/* Row 2: PERFORMANCE — full width */}
+          <article data-card
+            className="group relative col-span-12 overflow-hidden bg-[#0d0b12]"
+            style={{ aspectRatio: "16/6" }}>
+            <div className="absolute inset-[-4%] bg-cover bg-center transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              style={{ backgroundImage: "url('/media/gym-04.jpg')" }} />
+            <div className="pointer-events-none absolute inset-0"
+              style={{ background: "linear-gradient(180deg, transparent 40%, rgba(7,6,11,0.90) 100%)" }} />
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5 md:p-8">
+              <div>
+                <p className="mb-1" style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "10px", letterSpacing: "0.28em", fontWeight: 600, color: "rgba(244,241,247,0.55)" }}>Funktional · Conditioning</p>
+                <h3 className="font-display" style={{ fontSize: "clamp(22px,2.8vw,44px)", letterSpacing: "-0.01em", color: "#f7f4fb" }}>Performance</h3>
+              </div>
+              <span style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "11px", letterSpacing: "0.2em", fontWeight: 600, color: "rgba(244,241,247,0.40)" }}>/ 04</span>
+            </div>
+          </article>
         </div>
       </div>
 
       {/* Video interlude */}
       <div className="relative mx-auto max-w-[1320px] px-6 pb-24 md:px-12 md:pb-36">
-        <div data-interlude className="relative mt-5 aspect-[21/9] w-full overflow-hidden bg-black"
+        <div data-interlude className="relative aspect-[21/9] w-full overflow-hidden bg-black"
           style={{ willChange: "clip-path, transform, opacity" }}>
           <video className="absolute inset-0 h-full w-full object-cover" style={{ filter: "brightness(0.72) saturate(1.05)" }}
             src="/media/hero-b.mp4" autoPlay muted loop playsInline preload="metadata" />

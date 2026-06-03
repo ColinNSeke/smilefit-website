@@ -5,7 +5,6 @@ import IntroSequence from "./IntroSequence";
 import MixBlendCursor from "./MixBlendCursor";
 import ScrollProgressRail from "./ScrollProgressRail";
 import CinematicHero from "./CinematicHero";
-import BirdsSection from "./BirdsSection";
 import RaumeSection from "./RaumeSection";
 import ManifestoSection from "./ManifestoSection";
 import PricingSection from "./PricingSection";
@@ -20,7 +19,6 @@ export default function SmileFitLanding() {
       <SmoothScroll />
       <main className="relative w-full bg-[#050308]">
         <CinematicHero />
-        <BirdsSection />
         <RaumeSection />
         <ManifestoSection />
         <PricingSection />
