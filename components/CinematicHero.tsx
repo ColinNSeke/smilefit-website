@@ -1,310 +1,253 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import * as THREE from "three";
 
 const HERO_IMAGE = "/hero%20site%20new";
 const NAV = ["Programme", "Über uns", "Mitgliedschaft", "Coaching", "Kontakt"] as const;
 
-export default function CinematicHero() {
-  const root = useRef<HTMLElement | null>(null);
-  const cta = useRef<HTMLAnchorElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+/* ─── Split text into character spans ─── */
+function SplitChars({
+  text,
+  baseDelay = 0,
+  className = "",
+}: {
+  text: string;
+  baseDelay?: number;
+  className?: string;
+}) {
+  return (
+    <>
+      {text.split("").map((char, i) => (
+        <span
+          key={i}
+          className="inline-block overflow-hidden"
+          aria-hidden
+          style={{ verticalAlign: "top" }}
+        >
+          <motion.span
+            className={`inline-block ${className}`}
+            initial={{ y: "110%" }}
+            animate={{ y: "0%" }}
+            transition={{
+              delay: baseDelay + i * 0.025,
+              duration: 0.9,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            style={{ display: "inline-block" }}
+          >
+            {char === " " ? " " : char}
+          </motion.span>
+        </span>
+      ))}
+    </>
+  );
+}
 
-  /* =========================================================
-     THREE.JS — particle energy field
-  ========================================================= */
+/* ─── Custom cursor ─── */
+function HeroCursor({ heroRef }: { heroRef: React.RefObject<HTMLElement | null> }) {
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<"default" | "cta" | "figure">("default");
+  const pos = useRef({ x: -200, y: -200 });
+  const lerped = useRef({ x: -200, y: -200 });
+  const raf = useRef<number | null>(null);
+
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || typeof window === "undefined") return;
+    const hero = heroRef.current;
+    if (!hero) return;
 
-    const W = canvas.offsetWidth || window.innerWidth;
-    const H = canvas.offsetHeight || window.innerHeight;
+    const onMove = (e: MouseEvent) => {
+      pos.current = { x: e.clientX, y: e.clientY };
+    };
 
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.setSize(W, H);
-    renderer.setClearColor(0x000000, 0);
+    const loop = () => {
+      lerped.current.x += (pos.current.x - lerped.current.x) * 0.15;
+      lerped.current.y += (pos.current.y - lerped.current.y) * 0.15;
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate(${lerped.current.x}px, ${lerped.current.y}px) translate(-50%, -50%)`;
+      }
+      raf.current = requestAnimationFrame(loop);
+    };
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 200);
-    camera.position.set(0, 0, 7);
+    hero.addEventListener("mousemove", onMove);
 
-    /* --- Particle geometry --- */
-    const COUNT = window.innerWidth < 768 ? 2500 : 6000;
-    const positions = new Float32Array(COUNT * 3);
-    const colors    = new Float32Array(COUNT * 3);
-    const sizes     = new Float32Array(COUNT);
+    const ctaEls = hero.querySelectorAll("[data-cursor-cta]");
+    const figEls = hero.querySelectorAll("[data-cursor-figure]");
 
-    // Purple energy palette
-    const palette = [
-      new THREE.Color("#7a4cff"),
-      new THREE.Color("#7a4cff"),
-      new THREE.Color("#5f30c3"),
-      new THREE.Color("#5f30c3"),
-      new THREE.Color("#c9b8ff"),
-      new THREE.Color("#c9b8ff"),
-      new THREE.Color("#a07fff"),
-      new THREE.Color("#ffffff"),
-    ];
+    const enterCta = () => setMode("cta");
+    const enterFig = () => setMode("figure");
+    const reset = () => setMode("default");
 
-    for (let i = 0; i < COUNT; i++) {
-      // Spread wide across the viewport, clustered toward center
-      const spread = i < COUNT * 0.7 ? 14 : 22;
-      positions[i * 3]     = (Math.random() - 0.5) * spread;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * spread * 0.65;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 12;
-
-      const c = palette[Math.floor(Math.random() * palette.length)];
-      colors[i * 3]     = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
-
-      // Mix of micro dots and larger glowing orbs
-      const roll = Math.random();
-      sizes[i] = roll < 0.6 ? Math.random() * 0.8 + 0.2
-               : roll < 0.9 ? Math.random() * 2.0 + 0.8
-               :               Math.random() * 4.0 + 2.0;
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute("aColor",   new THREE.BufferAttribute(colors, 3));
-    geo.setAttribute("aSize",    new THREE.BufferAttribute(sizes, 1));
-
-    const mat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime:   { value: 0 },
-        uMouse:  { value: new THREE.Vector2(0, 0) },
-        uScroll: { value: 0 },
-      },
-      vertexShader: `
-        attribute vec3 aColor;
-        attribute float aSize;
-        uniform float uTime;
-        uniform vec2 uMouse;
-        uniform float uScroll;
-        varying vec3 vColor;
-        varying float vDist;
-
-        void main() {
-          vColor = aColor;
-          vec3 p = position;
-
-          // Organic drift — layered sin/cos
-          float t = uTime * 0.35;
-          p.x += sin(p.y * 0.42 + t * 1.1) * 0.55
-               + cos(p.z * 0.3  + t * 0.7) * 0.35;
-          p.y += cos(p.x * 0.38 + t * 0.9) * 0.45
-               + sin(p.z * 0.25 + t * 0.6) * 0.3;
-          p.z += sin(p.x * 0.3  + t * 0.8) * 0.25;
-
-          // Mouse parallax — particles react to cursor
-          p.x += uMouse.x * (1.5 - abs(position.z) * 0.12);
-          p.y += uMouse.y * (1.0 - abs(position.z) * 0.12);
-
-          // Scroll: camera pushes forward into the field
-          p.z -= uScroll * 5.5;
-
-          vec4 mvPos = modelViewMatrix * vec4(p, 1.0);
-          vDist = clamp(1.0 - length(mvPos.xyz) / 14.0, 0.0, 1.0);
-
-          gl_PointSize = clamp(aSize * (160.0 / max(-mvPos.z, 1.0)), 1.0, 80.0);
-          gl_Position  = projectionMatrix * mvPos;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        varying float vDist;
-
-        void main() {
-          vec2 uv = gl_PointCoord - 0.5;
-          float r  = length(uv);
-          if (r > 0.5) discard;
-
-          // Soft glow falloff
-          float core = 1.0 - smoothstep(0.0, 0.28, r);
-          float halo = 1.0 - smoothstep(0.28, 0.5,  r);
-          float alpha = (core * 0.95 + halo * 0.45) * vDist;
-
-          gl_FragColor = vec4(vColor, alpha);
-        }
-      `,
-      transparent: true,
-      vertexColors: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+    ctaEls.forEach((el) => {
+      el.addEventListener("mouseenter", enterCta);
+      el.addEventListener("mouseleave", reset);
+    });
+    figEls.forEach((el) => {
+      el.addEventListener("mouseenter", enterFig);
+      el.addEventListener("mouseleave", reset);
     });
 
-    const points = new THREE.Points(geo, mat);
-    scene.add(points);
-
-    /* --- Mouse --- */
-    const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
-    const onMouse = (e: MouseEvent) => {
-      mouse.tx = (e.clientX / window.innerWidth  - 0.5) * 2.2;
-      mouse.ty = -(e.clientY / window.innerHeight - 0.5) * 1.4;
-    };
-    window.addEventListener("mousemove", onMouse);
-
-    /* --- Scroll --- */
-    let scrollVal = 0;
-    const onScroll = () => {
-      scrollVal = Math.min(window.scrollY / window.innerHeight, 1);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    /* --- Resize --- */
-    const onResize = () => {
-      const w = canvas.offsetWidth, h = canvas.offsetHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-    window.addEventListener("resize", onResize);
-
-    /* --- Loop --- */
-    let rafId: number;
-    const clock = new THREE.Clock();
-    const animate = () => {
-      rafId = requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
-
-      mouse.x += (mouse.tx - mouse.x) * 0.04;
-      mouse.y += (mouse.ty - mouse.y) * 0.04;
-
-      mat.uniforms.uTime.value   = t;
-      mat.uniforms.uMouse.value.set(mouse.x, mouse.y);
-      mat.uniforms.uScroll.value = scrollVal;
-
-      // Slow rotation — gives a living, breathing feel
-      points.rotation.y = t * 0.018 + mouse.x * 0.08;
-      points.rotation.x = Math.sin(t * 0.012) * 0.08 + mouse.y * 0.04;
-
-      renderer.render(scene, camera);
-    };
-    animate();
+    raf.current = requestAnimationFrame(loop);
 
     return () => {
-      cancelAnimationFrame(rafId);
-      window.removeEventListener("mousemove", onMouse);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
-      renderer.dispose();
-      geo.dispose();
-      mat.dispose();
+      hero.removeEventListener("mousemove", onMove);
+      ctaEls.forEach((el) => {
+        el.removeEventListener("mouseenter", enterCta);
+        el.removeEventListener("mouseleave", reset);
+      });
+      figEls.forEach((el) => {
+        el.removeEventListener("mouseenter", enterFig);
+        el.removeEventListener("mouseleave", reset);
+      });
+      if (raf.current) cancelAnimationFrame(raf.current);
     };
+  }, [heroRef]);
+
+  const size =
+    mode === "cta" ? 64 : mode === "figure" ? 80 : 8;
+  const isRing = mode === "figure";
+
+  return (
+    <motion.div
+      ref={cursorRef}
+      className="pointer-events-none fixed z-[9999]"
+      style={{ top: 0, left: 0 }}
+      animate={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        backgroundColor: isRing ? "transparent" : "#f4f1f7",
+        border: isRing ? "1.5px solid #f4f1f7" : "none",
+        mixBlendMode: "difference",
+      }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+    />
+  );
+}
+
+export default function CinematicHero() {
+  const root = useRef<HTMLElement | null>(null);
+  const figureRef = useRef<HTMLDivElement | null>(null);
+  const cta = useRef<HTMLAnchorElement | null>(null);
+  const [reveal, setReveal] = useState(false);
+  const [reduced, setReduced] = useState(false);
+
+  /* ─── Framer Motion scroll-out mask ─── */
+  const { scrollYProgress } = useScroll({
+    target: root,
+    offset: ["start start", "end start"],
+  });
+  const maskHeight = useTransform(scrollYProgress, [0, 1], ["0vh", "100vh"]);
+
+  /* ─── Mouse parallax for figure (Framer Motion springs) ─── */
+  const rawX = useMotionValue(0);
+  const rawY = useMotionValue(0);
+  const springX = useSpring(rawX, { stiffness: 50, damping: 20 });
+  const springY = useSpring(rawY, { stiffness: 50, damping: 20 });
+  const figureRotateY = useTransform(springX, [-1, 1], [-3, 3]);
+
+  /* ─── Scroll parallax for figure (translateY 0.3×) ─── */
+  const figureY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+
+  /* ─── Figure X from spring (derived at top level) ─── */
+  const figureX = useTransform(springX, (v) => v * 8);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+
+    // Trigger character reveal after mount
+    const t = setTimeout(() => setReveal(true), 80);
+    return () => clearTimeout(t);
   }, []);
 
-  /* =========================================================
-     GSAP — hero text + scroll
-  ========================================================= */
+  /* ─── Mouse parallax handler ─── */
+  useEffect(() => {
+    const hero = root.current;
+    if (!hero) return;
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    if (isMobile || reduced) return;
+
+    const onMove = (e: MouseEvent) => {
+      const r = hero.getBoundingClientRect();
+      const nx = (e.clientX - r.left) / r.width - 0.5;
+      const ny = (e.clientY - r.top) / r.height - 0.5;
+      rawX.set(nx * 2);
+      rawY.set(ny * 2);
+    };
+    hero.addEventListener("mousemove", onMove);
+    return () => hero.removeEventListener("mousemove", onMove);
+  }, [rawX, rawY, reduced]);
+
+  /* ─── GSAP: nav + eyebrow + CTA reveals + scroll parallax ─── */
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const cleanups: Array<() => void> = [];
 
     const ctx = gsap.context(() => {
-      /* ---- Reduced motion: show everything ---- */
-      if (reduce) {
-        gsap.set("[data-rv]", { opacity: 1, y: 0, scale: 1, clipPath: "inset(0% 0%)" });
-        gsap.set("[data-line]", { clipPath: "inset(0% 0%)", yPercent: 0 });
-        gsap.set("[data-textglow]", { opacity: 1, scale: 1 });
+      if (reduced) {
+        gsap.set("[data-rv]", { opacity: 1, y: 0 });
+        gsap.set("[data-eyebrow]", { opacity: 1, y: 0 });
+        gsap.set("[data-cta]", { opacity: 1, y: 0 });
+        gsap.set("[data-brandmark]", { opacity: 1, y: 0 });
+        gsap.set("[data-navitem]", { opacity: 1, y: 0 });
+        gsap.set("[data-scrollcue]", { opacity: 1 });
         return;
       }
 
-      /* ---- Initial states ---- */
-      gsap.set("[data-line]", { clipPath: "inset(0% 0% 100% 0%)", yPercent: 140, scale: 1.2, filter: "blur(28px)" });
-      gsap.set("[data-textglow]", { opacity: 0, scale: 0.4 });
-      gsap.set("[data-eyebrow]", { opacity: 0, y: 30, filter: "blur(12px)" });
-      gsap.set("[data-cta]", { opacity: 0, y: 50, filter: "blur(12px)" });
-      gsap.set("[data-brandmark]", { opacity: 0, y: -20 });
-      gsap.set("[data-navitem]", { opacity: 0, y: -16 });
+      gsap.set("[data-eyebrow]", { opacity: 0, y: 24, filter: "blur(8px)" });
+      gsap.set("[data-cta]", { opacity: 0, y: 40, filter: "blur(8px)" });
+      gsap.set("[data-brandmark]", { opacity: 0, y: -16 });
+      gsap.set("[data-navitem]", { opacity: 0, y: -12 });
       gsap.set("[data-scrollcue]", { opacity: 0 });
-      gsap.set("[data-burst]", { scale: 1.22, opacity: 0 });
+      gsap.set("[data-burst]", { scale: 1.18, opacity: 0 });
 
-      /* ---- Load-in sequence ---- */
-      const tl = gsap.timeline({ delay: 0.1 });
+      const tl = gsap.timeline({ delay: 0.05 });
       tl
-        // Background image scales into place
-        .to("[data-burst]", { scale: 1, opacity: 1, duration: 2.4, ease: "power2.out" }, 0)
-        // Nav
-        .to("[data-brandmark]", { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 0.2)
-        .to("[data-navitem]", { opacity: 1, y: 0, duration: 0.8, ease: "power3.out", stagger: 0.07 }, 0.25)
-        // Purple glow blooms — big and obvious
-        .to("[data-textglow]", { opacity: 1, scale: 1, duration: 1.8, ease: "power2.out" }, 0.5)
-        // Eyebrow
-        .to("[data-eyebrow]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 1.0, ease: "power3.out" }, 0.7)
-        // HEADLINE — cinematic line reveal with massive blur clearing
-        .to("[data-line]", {
-          clipPath: "inset(0% 0% 0% 0%)",
-          yPercent: 0,
-          scale: 1,
-          filter: "blur(0px)",
-          duration: 1.4,
-          ease: "expo.out",
-          stagger: 0.2,
-          onComplete: () => gsap.set("[data-line]", { clearProps: "filter" }),
-        }, 0.85)
-        // CTA
-        .to("[data-cta]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 1.0, ease: "expo.out",
-          onComplete: () => gsap.set("[data-cta]", { clearProps: "filter" })
-        }, 1.6)
-        // Scroll cue
-        .to("[data-scrollcue]", { opacity: 1, duration: 0.8 }, 2.1);
+        .to("[data-burst]", { scale: 1, opacity: 1, duration: 2.2, ease: "power2.out" }, 0)
+        .to("[data-brandmark]", { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 0.15)
+        .to("[data-navitem]", { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", stagger: 0.06 }, 0.2)
+        .to("[data-eyebrow]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out",
+            onComplete: () => gsap.set("[data-eyebrow]", { clearProps: "filter" }) }, 0.55)
+        .to("[data-cta]", { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "expo.out",
+            onComplete: () => gsap.set("[data-cta]", { clearProps: "filter" }) }, 1.7)
+        .to("[data-scrollcue]", { opacity: 1, duration: 0.8 }, 2.2);
 
-      /* ---- Scroll parallax on hero ---- */
-      const scrollTl = gsap.timeline({
+      /* Scroll parallax on copy block */
+      gsap.timeline({
         scrollTrigger: {
           trigger: root.current,
           start: "top top",
           end: "bottom top",
           scrub: 0.5,
         },
-      });
-      scrollTl
-        .to("[data-burst]",    { yPercent: 20, scale: 1.08, ease: "none" }, 0)
-        .to("[data-copy]",     { yPercent: -14, opacity: 0, ease: "none" }, 0)
-        .to("[data-textglow]", { yPercent: -20, opacity: 0, ease: "none" }, 0)
-        .to("[data-vignette]", { opacity: 1, ease: "none" }, 0);
+      })
+        .to("[data-copy]", { yPercent: -12, opacity: 0, ease: "none" }, 0)
+        .to("[data-burst]", { yPercent: 18, scale: 1.06, ease: "none" }, 0);
 
-      /* ---- Pointer parallax ---- */
+      /* CTA magnetic hover */
       const hover = window.matchMedia("(hover: hover)").matches;
-      if (hover && root.current) {
-        const rootEl = root.current;
-        const qBX = gsap.quickTo("[data-burst]", "x", { duration: 1.0, ease: "power3.out" });
-        const qBY = gsap.quickTo("[data-burst]", "y", { duration: 1.0, ease: "power3.out" });
-        const qGX = gsap.quickTo("[data-textglow]", "x", { duration: 0.9, ease: "power3.out" });
-        const qGY = gsap.quickTo("[data-textglow]", "y", { duration: 0.9, ease: "power3.out" });
-        const onMove = (e: MouseEvent) => {
-          const r  = rootEl.getBoundingClientRect();
-          const nx = (e.clientX - r.left) / r.width  - 0.5;
-          const ny = (e.clientY - r.top)  / r.height - 0.5;
-          qBX(nx * -32);
-          qBY(ny * -20);
-          qGX(nx * 28);
-          qGY(ny * 18);
-        };
-        rootEl.addEventListener("mousemove", onMove);
-        cleanups.push(() => rootEl.removeEventListener("mousemove", onMove));
-      }
-
-      /* ---- CTA magnetic hover ---- */
       if (hover && cta.current) {
         const btn = cta.current;
         const onMove = (e: MouseEvent) => {
-          const r  = btn.getBoundingClientRect();
-          const dx = (e.clientX - (r.left + r.width  / 2)) * 0.38;
-          const dy = (e.clientY - (r.top  + r.height / 2)) * 0.38;
-          gsap.to(btn, { x: dx, y: dy, duration: 0.35, ease: "power2.out",
-            boxShadow: "0 0 36px rgba(122,76,255,0.65)" });
+          const r = btn.getBoundingClientRect();
+          gsap.to(btn, {
+            x: (e.clientX - (r.left + r.width / 2)) * 0.35,
+            y: (e.clientY - (r.top + r.height / 2)) * 0.35,
+            duration: 0.3, ease: "power2.out",
+            boxShadow: "0 0 32px rgba(122,76,255,0.6)",
+          });
         };
-        const onLeave = () => {
-          gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: "elastic.out(1, 0.5)",
-            boxShadow: "0 0 0px rgba(122,76,255,0)" });
-        };
+        const onLeave = () =>
+          gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: "elastic.out(1,0.5)", boxShadow: "0 0 0 rgba(122,76,255,0)" });
         btn.addEventListener("mousemove", onMove);
         btn.addEventListener("mouseleave", onLeave);
         cleanups.push(() => {
@@ -314,7 +257,7 @@ export default function CinematicHero() {
       }
     }, root);
 
-    const refreshT = setTimeout(() => ScrollTrigger.refresh(), 700);
+    const refreshT = setTimeout(() => ScrollTrigger.refresh(), 600);
     if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
 
     return () => {
@@ -322,69 +265,114 @@ export default function CinematicHero() {
       cleanups.forEach((c) => c());
       ctx.revert();
     };
-  }, []);
+  }, [reduced]);
+
+  /* ─── Char reveal timing ─── */
+  // line 1: "YOU'RE NOT" (10 chars), line 2: " DONE YET." (10 chars)
+  const line1 = "YOU'RE NOT";
+  const line2 = " DONE YET.";
+  const eyebrowDelay = 0.4;
+  const line1Delay = 0.75;
+  const line2Delay = line1Delay + line1.length * 0.025 + 0.08;
 
   return (
     <section
       ref={root}
       className="relative h-screen min-h-[640px] w-full overflow-hidden bg-[#050308] text-[#f4f1f7]"
+      style={{ cursor: "none" }}
     >
-      {/* Background image */}
+      {/* Custom cursor — desktop only */}
+      <HeroCursor heroRef={root} />
+
+      {/* ── Volumetric haze blobs ── */}
+      <div className="pointer-events-none absolute inset-0 z-[2]" aria-hidden>
+        {/* Blob A — large warm purple, drifts on Lissajous-style path */}
+        <motion.div
+          className="absolute"
+          style={{
+            width: "70vw",
+            height: "70vw",
+            borderRadius: "50%",
+            background:
+              "radial-gradient(ellipse at 50% 50%, rgba(122,76,255,0.55) 0%, rgba(95,48,195,0.22) 40%, transparent 70%)",
+            filter: "blur(180px)",
+            top: "-10%",
+            left: "-15%",
+          }}
+          animate={reduced ? {} : {
+            x: [0, 60, -40, 80, 0],
+            y: [0, 80, 160, 60, 0],
+          }}
+          transition={{ duration: 40, ease: "linear", repeat: Infinity }}
+        />
+        {/* Blob B — cooler blue-purple, opposite phase */}
+        <motion.div
+          className="absolute"
+          style={{
+            width: "55vw",
+            height: "55vw",
+            borderRadius: "50%",
+            background:
+              "radial-gradient(ellipse at 50% 50%, rgba(160,127,255,0.38) 0%, rgba(122,76,255,0.14) 45%, transparent 70%)",
+            filter: "blur(180px)",
+            bottom: "-15%",
+            right: "-10%",
+          }}
+          animate={reduced ? {} : {
+            x: [0, -70, 40, -50, 0],
+            y: [0, -60, -130, -40, 0],
+          }}
+          transition={{ duration: 60, ease: "linear", repeat: Infinity }}
+        />
+      </div>
+
+      {/* Background hero image */}
       <div
         data-burst
         className="absolute inset-0 z-0"
         style={{ willChange: "transform, opacity" }}
       >
         <div
-          className="absolute inset-0 bg-cover md:bg-[position:72%_50%]"
-          style={{ backgroundImage: `url('${HERO_IMAGE}')`, backgroundPosition: "center" }}
+          data-cursor-figure
+          className="absolute inset-0 bg-cover"
+          style={{
+            backgroundImage: `url('${HERO_IMAGE}')`,
+            backgroundPosition: "center",
+          }}
         />
       </div>
 
-      {/* Left gradient — masks baked reference text */}
+      {/* Figure container with mouse parallax + scroll parallax + rim-light */}
+      <motion.div
+        ref={figureRef}
+        data-cursor-figure
+        className="pointer-events-none absolute inset-0 z-[3]"
+        style={{
+          x: figureX,
+          y: figureY,
+          rotateY: figureRotateY,
+          filter: "drop-shadow(-6px 0 24px rgba(122,76,255,0.55)) drop-shadow(6px 0 16px rgba(160,127,255,0.35))",
+          willChange: "transform, filter",
+        }}
+        initial={reduced ? {} : { scale: 0.96, opacity: 0 }}
+        animate={reduced ? {} : { scale: 1, opacity: 1 }}
+        transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+      />
+
+      {/* Left gradient */}
       <div
-        className="pointer-events-none absolute inset-0 z-[1]"
+        className="pointer-events-none absolute inset-0 z-[4]"
         style={{
           background:
-            "linear-gradient(90deg, #050308 0%, #050308 40%, rgba(5,3,8,0.90) 52%, rgba(5,3,8,0.50) 66%, rgba(5,3,8,0.14) 78%, transparent 90%)",
+            "linear-gradient(90deg, #050308 0%, #050308 36%, rgba(5,3,8,0.88) 50%, rgba(5,3,8,0.45) 64%, rgba(5,3,8,0.10) 76%, transparent 90%)",
         }}
       />
       {/* Top/bottom grade */}
       <div
-        className="pointer-events-none absolute inset-0 z-[1]"
+        className="pointer-events-none absolute inset-0 z-[4]"
         style={{
           background:
-            "linear-gradient(180deg, rgba(5,3,8,0.65) 0%, transparent 22%, transparent 65%, rgba(5,3,8,0.88) 100%)",
-        }}
-      />
-
-      {/* THREE.JS CANVAS — energy particle field */}
-      <canvas
-        ref={canvasRef}
-        className="pointer-events-none absolute inset-0 z-[3]"
-        style={{
-          width: "100%",
-          height: "100%",
-          mixBlendMode: "screen",
-          willChange: "transform",
-        }}
-      />
-
-      {/* Purple glow bloom behind the headline — visible, strong */}
-      <div
-        data-textglow
-        aria-hidden
-        className="pointer-events-none absolute z-[4]"
-        style={{
-          left: "-10%",
-          top: "50%",
-          transform: "translateY(-50%)",
-          width: "72vw",
-          height: "70vh",
-          background:
-            "radial-gradient(ellipse at 30% 50%, rgba(122,76,255,0.65) 0%, rgba(95,48,195,0.30) 30%, rgba(95,48,195,0.08) 60%, transparent 75%)",
-          filter: "blur(28px)",
-          willChange: "transform, opacity",
+            "linear-gradient(180deg, rgba(5,3,8,0.55) 0%, transparent 20%, transparent 66%, rgba(5,3,8,0.88) 100%)",
         }}
       />
 
@@ -446,6 +434,7 @@ export default function CinematicHero() {
         className="absolute inset-y-0 left-0 z-[10] flex max-w-[860px] flex-col justify-center px-6 md:px-12 lg:px-20"
         style={{ willChange: "transform, opacity" }}
       >
+        {/* Eyebrow */}
         <p
           data-eyebrow
           className="mb-7 flex items-center gap-3"
@@ -461,6 +450,7 @@ export default function CinematicHero() {
           BRING BACK YOUR PRIME, ONE MORE TIME.
         </p>
 
+        {/* Headline — per-character split reveal */}
         <h1
           className="font-display"
           style={{
@@ -469,22 +459,25 @@ export default function CinematicHero() {
             letterSpacing: "-0.03em",
             color: "#f7f4fb",
           }}
+          aria-label={`${line1} ${line2}`}
         >
-          <span className="block overflow-hidden">
-            <span data-line className="block whitespace-nowrap" style={{ willChange: "transform, filter" }}>
-              You&rsquo;re not
-            </span>
+          <span className="block">
+            {reveal || reduced ? (
+              <SplitChars text={line1} baseDelay={reduced ? 0 : line1Delay} />
+            ) : null}
           </span>
-          <span className="block overflow-hidden">
-            <span data-line className="block whitespace-nowrap" style={{ willChange: "transform, filter" }}>
-              done yet.
-            </span>
+          <span className="block">
+            {reveal || reduced ? (
+              <SplitChars text={line2} baseDelay={reduced ? 0 : line2Delay} />
+            ) : null}
           </span>
         </h1>
 
+        {/* CTA */}
         <div data-cta className="mt-11 flex items-center gap-6 md:mt-14" style={{ willChange: "transform, opacity" }}>
           <a
             ref={cta}
+            data-cursor-cta
             href="#mitgliedschaft"
             className="group relative inline-flex items-center gap-4 overflow-hidden border px-9 py-5"
             style={{
@@ -523,6 +516,15 @@ export default function CinematicHero() {
           <span className="animate-scroll-cue absolute inset-x-0 top-0 h-1/3 bg-[#f4f1f7]" />
         </span>
       </div>
+
+      {/* ── Scroll-out mask — top-anchored gradient grows to cover hero as user scrolls ── */}
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 top-0 z-[30]"
+        style={{
+          height: maskHeight,
+          background: "linear-gradient(to bottom, #000 0%, transparent 40%)",
+        }}
+      />
     </section>
   );
 }
