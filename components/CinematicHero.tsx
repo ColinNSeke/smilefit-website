@@ -270,7 +270,7 @@ export default function CinematicHero() {
   /* ─── Char reveal timing ─── */
   // line 1: "YOU'RE NOT" (10 chars), line 2: " DONE YET." (10 chars)
   const line1 = "YOU'RE NOT";
-  const line2 = " DONE YET.";
+  const line2 = "DONE YET.";
   const eyebrowDelay = 0.4;
   const line1Delay = 0.75;
   const line2Delay = line1Delay + line1.length * 0.025 + 0.08;
@@ -461,12 +461,12 @@ export default function CinematicHero() {
           }}
           aria-label={`${line1} ${line2}`}
         >
-          <span className="block">
+          <span className="block whitespace-nowrap">
             {reveal || reduced ? (
               <SplitChars text={line1} baseDelay={reduced ? 0 : line1Delay} />
             ) : null}
           </span>
-          <span className="block">
+          <span className="block whitespace-nowrap">
             {reveal || reduced ? (
               <SplitChars text={line2} baseDelay={reduced ? 0 : line2Delay} />
             ) : null}
