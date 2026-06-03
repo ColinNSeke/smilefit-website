@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import HeroBezierText from "./HeroBezierText";
 
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
@@ -61,12 +62,28 @@ export default function CinematicHero() {
         style={{ opacity: 0 }}
       >
         <img
-          src="/NEW HERO PAGE"
+          src="/NEW%20HERO%20PAGE"
           alt="SmileFit — Bring back your prime."
           className="absolute inset-0 h-full w-full object-cover object-center"
           draggable={false}
-          priority-fetch="high"
+          fetchPriority="high"
         />
+
+        {/* Overlay hides the baked-in headline on the left so the animated
+            version is the only visible headline. */}
+        <div
+          className="pointer-events-none absolute inset-0 z-[1]"
+          style={{
+            background:
+              "linear-gradient(to right, rgba(0,0,0,0.96), rgba(0,0,0,0.85) 50%, transparent 100%)",
+            // confine the darkening to roughly the left 55% of the frame
+            maskImage: "linear-gradient(to right, #000 0%, #000 45%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to right, #000 0%, #000 45%, transparent 100%)",
+          }}
+        />
+
+        {/* Animated 3D Bezier headline */}
+        <HeroBezierText />
       </section>
     </>
   );
