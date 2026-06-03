@@ -3,11 +3,12 @@
 import React, { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { CustomEase } from "gsap/CustomEase";
 import SplitType from "split-type";
 import { prefersReducedMotion } from "@/lib/lenis";
 
 type Props = {
-  children: string;
+  children: React.ReactNode;
   as?: keyof React.JSX.IntrinsicElements;
   className?: string;
   style?: React.CSSProperties;
@@ -31,12 +32,11 @@ export default function RevealHeading({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    gsap.registerPlugin(ScrollTrigger);
+    gsap.registerPlugin(ScrollTrigger, CustomEase);
 
-    const reduce = prefersReducedMotion();
-    const split = new SplitType(el, { types: "lines,words" });
+    if (prefersReducedMotion()) return;
 
-    // Wrap each word in an overflow-hidden mask line.
+    const split = new SplitType(el, { types: "words" });
     const words = split.words ?? [];
     words.forEach((w) => {
       const wrap = document.createElement("span");
@@ -48,12 +48,8 @@ export default function RevealHeading({
       (w as HTMLElement).style.display = "inline-block";
     });
 
-    if (reduce) {
-      gsap.set(words, { yPercent: 0, opacity: 1 });
-      return () => split.revert();
-    }
-
-    gsap.set(words, { yPercent: 115 });
+    const ease = CustomEase.create("smilefitHeadingReveal", "0.22,1,0.36,1");
+    gsap.set(words, { yPercent: 110 });
     const st = ScrollTrigger.create({
       trigger: el,
       start: "top 75%",
@@ -62,7 +58,7 @@ export default function RevealHeading({
         gsap.to(words, {
           yPercent: 0,
           duration: 0.9,
-          ease: "expo.out",
+          ease,
           stagger,
         });
       },

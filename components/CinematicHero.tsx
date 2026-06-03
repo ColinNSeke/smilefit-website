@@ -1,19 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Image from "next/image";
 
 export default function CinematicHero() {
   const root = useRef<HTMLElement | null>(null);
   const [navLinksHidden, setNavLinksHidden] = useState(true);
-
-  /* Fade-in on load */
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
-    gsap.set(root.current, { opacity: 0 });
-    gsap.to(root.current, { opacity: 1, duration: 0.8, ease: "power2.out", delay: 0.1 });
-  }, []);
 
   /* Hide nav text links while hero is in view */
   useEffect(() => {
@@ -57,15 +49,16 @@ export default function CinematicHero() {
       {/* Hero — image only */}
       <section
         ref={root}
-        className="relative h-screen min-h-[640px] w-full overflow-hidden"
-        style={{ opacity: 0 }}
+        className="smilefit-hero-fade relative h-screen min-h-[640px] w-full overflow-hidden"
       >
-        <img
+        <Image
           src="/NEW HERO PAGE"
           alt="SmileFit — Bring back your prime."
+          fill
+          preload
+          sizes="100vw"
           className="absolute inset-0 h-full w-full object-cover object-center"
           draggable={false}
-          priority-fetch="high"
         />
       </section>
     </>

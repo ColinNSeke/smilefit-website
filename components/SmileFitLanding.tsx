@@ -1,8 +1,6 @@
 "use client";
 
-import SmoothScroll from "./SmoothScroll";
-import IntroSequence from "./IntroSequence";
-import MixBlendCursor from "./MixBlendCursor";
+import CustomCursor from "./CustomCursor";
 import ScrollProgressRail from "./ScrollProgressRail";
 import CinematicHero from "./CinematicHero";
 import RaumeSection from "./RaumeSection";
@@ -13,10 +11,8 @@ import FooterInfo from "./FooterInfo";
 export default function SmileFitLanding() {
   return (
     <>
-      <IntroSequence />
-      <MixBlendCursor />
+      <CustomCursor />
       <ScrollProgressRail />
-      <SmoothScroll />
       <main className="relative w-full bg-[#050308]">
         <CinematicHero />
         <RaumeSection />

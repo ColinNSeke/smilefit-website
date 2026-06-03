@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import MagneticButton from "./MagneticButton";
+import RevealHeading from "./RevealHeading";
 
 export default function FooterInfo() {
   const root = useRef<HTMLElement | null>(null);
@@ -12,30 +14,21 @@ export default function FooterInfo() {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const ctx = gsap.context(() => {
+      const outline = root.current?.querySelector<SVGTextElement>("[data-bigmark-outline]");
+      const outlineClip = root.current?.querySelector<SVGRectElement>("[data-bigmark-clip]");
+
       if (reduce) {
-        gsap.set("[data-fi],[data-bigmark],[data-footer-headline],[data-footer-cta]",
-          { clearProps: "all" });
+        gsap.set("[data-fi],[data-footer-cta]", { opacity: 1, y: 0 });
+        gsap.set("[data-footer-darken]", { opacity: 0 });
+        if (outline) gsap.set(outline, { strokeDashoffset: 0 });
+        if (outlineClip) gsap.set(outlineClip, { attr: { width: 1320 } });
         return;
       }
 
-      /* =============================================
-         CINEMATIC REVEAL — section emerges from total darkness
-      ============================================= */
-
-      // Start: everything hidden
-      gsap.set("[data-footer-headline]", {
-        opacity: 0,
-        scale: 1.28,
-        filter: "blur(32px)",
-        y: 40,
-      });
       gsap.set("[data-fi]", { opacity: 0, y: 50, filter: "blur(10px)" });
       gsap.set("[data-footer-cta]", { opacity: 0, y: 40 });
-
-      // Darkness overlay starts opaque
       gsap.set("[data-footer-darken]", { opacity: 1 });
 
-      // Master timeline triggered when section enters
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: root.current,
@@ -44,29 +37,7 @@ export default function FooterInfo() {
       });
 
       tl
-        // 1. Darkness lifts
         .to("[data-footer-darken]", { opacity: 0, duration: 1.4, ease: "power2.out" }, 0)
-
-        // 2. Headline bursts in — biggest blur clear of the page
-        .to("[data-footer-headline]", {
-          opacity: 1,
-          scale: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 1.5,
-          ease: "expo.out",
-          onComplete: () => {
-            gsap.set("[data-footer-headline]", { clearProps: "filter" });
-            // Purple glow settles into the headline
-            gsap.to("[data-footer-headline]", {
-              textShadow: "0 0 80px rgba(122,76,255,0.45)",
-              duration: 1.0,
-              ease: "power2.out",
-            });
-          },
-        }, 0.3)
-
-        // 3. Info columns rise in
         .to("[data-fi]", {
           opacity: 1,
           y: 0,
@@ -76,69 +47,24 @@ export default function FooterInfo() {
           stagger: 0.09,
           onComplete: () => gsap.set("[data-fi]", { clearProps: "filter" }),
         }, 0.7)
-
-        // 4. CTA button
         .to("[data-footer-cta]", { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 0.9);
 
-      // WORDMARK — stroke draws in left → right, then tilts on scroll-past
-      gsap.fromTo(
-        "[data-bigmark]",
-        { clipPath: "inset(0% 100% 0% 0%)" },
-        {
-          clipPath: "inset(0% 0% 0% 0%)",
-          duration: 1.4,
-          ease: "expo.out",
-          scrollTrigger: { trigger: "[data-bigmark]", start: "top 90%" },
-        }
-      );
-      // read-from-below tilt (max 4°) as it leaves the viewport
-      gsap.fromTo(
-        "[data-bigmark]",
-        { rotateX: 0 },
-        {
-          rotateX: 4,
-          ease: "none",
-          transformPerspective: 900,
-          transformOrigin: "center bottom",
-          scrollTrigger: { trigger: "[data-bigmark]", start: "top 60%", end: "bottom top", scrub: 0.6 },
-        }
-      );
-
-      /* =============================================
-         CTA BUTTON — always-pulsing glow
-      ============================================= */
-      const ctaBtn = root.current?.querySelector<HTMLElement>("[data-footer-cta]");
-      if (ctaBtn) {
-        const pulse = gsap.to(ctaBtn, {
-          boxShadow: "0 0 42px rgba(122,76,255,0.65)",
-          duration: 1.6,
-          ease: "sine.inOut",
-          repeat: -1,
-          yoyo: true,
-          delay: 1.2,
+      if (outline) {
+        const wordmarkTimeline = gsap.timeline({
+          scrollTrigger: { trigger: outline, start: "top 90%" },
         });
-
-        if (window.matchMedia("(hover: hover)").matches) {
-          const onMove = (e: MouseEvent) => {
-            const r  = ctaBtn.getBoundingClientRect();
-            const dx = (e.clientX - (r.left + r.width  / 2)) * 0.38;
-            const dy = (e.clientY - (r.top  + r.height / 2)) * 0.38;
-            pulse.pause();
-            gsap.to(ctaBtn, {
-              x: dx, y: dy,
-              boxShadow: "0 0 60px rgba(122,76,255,0.90)",
-              duration: 0.3, ease: "power2.out",
-            });
-          };
-          const onLeave = () => {
-            gsap.to(ctaBtn, {
-              x: 0, y: 0,
-              duration: 0.6, ease: "elastic.out(1,0.5)",
-              onComplete: () => pulse.play(),
-            });
-          };
-          ctaBtn.addEventListener("mousemove", onMove as EventListener);
-          ctaBtn.addEventListener("mouseleave", onLeave);
+        wordmarkTimeline.fromTo(
+          outline,
+          { strokeDashoffset: 2600 },
+          { strokeDashoffset: 0, duration: 1.4, ease: "expo.out" },
+        );
+        if (outlineClip) {
+          wordmarkTimeline.fromTo(
+            outlineClip,
+            { attr: { width: 0 } },
+            { attr: { width: 1320 }, duration: 1.4, ease: "expo.out" },
+            0,
+          );
         }
       }
     }, root);
@@ -174,7 +100,7 @@ export default function FooterInfo() {
       {/* Drifting particles */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.28] mix-blend-screen"
+        className="footer-particles pointer-events-none absolute inset-0 opacity-[0.28] mix-blend-screen"
         style={{
           backgroundImage:
             "radial-gradient(1.8px 1.8px at 18% 28%, rgba(180,130,255,0.7), transparent 50%), radial-gradient(1.4px 1.4px at 72% 18%, rgba(140,90,255,0.6), transparent 50%), radial-gradient(1.2px 1.2px at 48% 58%, rgba(200,170,255,0.55), transparent 50%), radial-gradient(1.5px 1.5px at 83% 68%, rgba(160,100,255,0.5), transparent 50%)",
@@ -205,23 +131,24 @@ export default function FooterInfo() {
               <span className="inline-block h-px w-8" style={{ background: "rgba(122,76,255,0.8)" }} />
               KONTAKT · STUTTGART
             </p>
-            <h2
-              data-footer-headline
+            <RevealHeading
+              as="h2"
               className="font-serif-editorial"
               style={{
                 fontSize: "clamp(32px,4.6vw,68px)",
                 lineHeight: 1.02,
                 fontWeight: 300,
                 color: "#efeaf6",
-                willChange: "transform, opacity, filter, text-shadow",
               }}
             >
               Bereit, wenn <span className="italic">du es bist.</span>
-            </h2>
+            </RevealHeading>
           </div>
 
-          <a
-            data-footer-cta
+          <MagneticButton
+            dataCursorCta
+            dataFooterCta
+            cursorLabel="BOOK"
             href="#"
             className="group inline-flex w-fit items-center gap-4 border px-8 py-4 transition-colors"
             style={{
@@ -237,7 +164,7 @@ export default function FooterInfo() {
           >
             Probetraining reservieren
             <span aria-hidden className="transition-transform duration-500 group-hover:translate-x-2">→</span>
-          </a>
+          </MagneticButton>
         </div>
 
         {/* INFO COLUMNS */}
@@ -348,21 +275,38 @@ export default function FooterInfo() {
 
       {/* GIANT WORDMARK */}
       <div className="relative z-[11] overflow-hidden px-6 md:px-12">
-        <h2
-          data-bigmark
-          className="font-display mx-auto max-w-[1320px] leading-none"
-          style={{
-            fontSize: "clamp(64px,19vw,320px)",
-            letterSpacing: "-0.04em",
-            color: "transparent",
-            WebkitTextStroke: "1px rgba(244,241,247,0.16)",
-            lineHeight: 0.82,
-            paddingBottom: "0.06em",
-            willChange: "clip-path, transform",
-          }}
+        <svg
+          className="mx-auto block h-auto w-full max-w-[1320px]"
+          viewBox="0 0 1320 250"
+          role="img"
+          aria-label="SMILEFIT"
         >
-          SMILEFIT
-        </h2>
+          <defs>
+            <clipPath id="smilefit-footer-wordmark-clip">
+              <rect data-bigmark-clip x="0" y="0" width="0" height="250" />
+            </clipPath>
+          </defs>
+          <text
+            data-bigmark-outline
+            x="8"
+            y="214"
+            fill="none"
+            stroke="rgba(244,241,247,0.22)"
+            strokeWidth="1.5"
+            strokeDasharray="2600"
+            strokeDashoffset="2600"
+            strokeLinecap="round"
+            clipPath="url(#smilefit-footer-wordmark-clip)"
+            style={{
+              fontFamily: "'Arial Black', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+              fontSize: "228px",
+              fontWeight: 900,
+              letterSpacing: "-12px",
+            }}
+          >
+            SMILEFIT
+          </text>
+        </svg>
       </div>
 
       {/* BOTTOM BAR */}
