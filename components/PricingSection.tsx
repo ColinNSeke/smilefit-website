@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -68,6 +68,25 @@ export default function PricingSection() {
   const root = useRef<HTMLElement | null>(null);
   const pinWrap = useRef<HTMLDivElement | null>(null);
   const sceneProgress = useRef(0);
+  const [glowEnabled, setGlowEnabled] = useState(false);
+
+  /* Cursor-follow glow only on hover-capable, motion-OK devices */
+  useEffect(() => {
+    const hover = window.matchMedia("(hover: hover)").matches;
+    setGlowEnabled(hover && !prefersReducedMotion());
+  }, []);
+
+  const handleGlowMove = (e: React.MouseEvent<HTMLElement>) => {
+    if (!glowEnabled) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    card.style.setProperty("--glow-x", `${e.clientX - rect.left}px`);
+    card.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
+    card.style.setProperty("--glow-opacity", "1");
+  };
+  const handleGlowLeave = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.setProperty("--glow-opacity", "0");
+  };
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
@@ -131,20 +150,8 @@ export default function PricingSection() {
       gsap.to("[data-phead]", { opacity: 1, y: 0, duration: 1.0, ease: "power3.out", stagger: 0.12,
         scrollTrigger: { trigger: "[data-pheadwrap]", start: "top 85%" } });
 
-      /* ── Hover lift (no pulsing glow) ── */
+      /* ── Magnetic price CTAs (cards themselves stay static; glow handled in JSX) ── */
       if (!mobile) {
-        cards.forEach((card) => {
-          const featured = card.hasAttribute("data-card-featured");
-          const onEnter = () => gsap.to(card, { y: -8, z: 40, duration: 0.4, ease: "power2.out",
-            boxShadow: featured
-              ? "0 30px 70px -30px rgba(122,76,255,0.55), 0 0 1px rgba(180,140,255,0.9)"
-              : "0 30px 70px -30px rgba(0,0,0,0.65)" });
-          const onLeave = () => gsap.to(card, { y: 0, z: 0, duration: 0.5, ease: "power2.out" });
-          card.addEventListener("mouseenter", onEnter);
-          card.addEventListener("mouseleave", onLeave);
-        });
-
-        /* magnetic price CTAs */
         gsap.utils.toArray<HTMLElement>("[data-price-cta]").forEach((btn) => {
           const onMove = (e: MouseEvent) => {
             const r = btn.getBoundingClientRect();
@@ -192,10 +199,13 @@ export default function PricingSection() {
             {PLANS.map((plan) => (
               <div key={plan.name} data-card
                 {...(plan.featured ? { "data-card-featured": "" } : {})}
+                onMouseMove={handleGlowMove}
+                onMouseLeave={handleGlowLeave}
                 className="relative flex h-full flex-col p-8 md:p-9"
                 style={{
-                  willChange: "transform, box-shadow",
                   borderRadius: "2px",
+                  overflow: "hidden",
+                  isolation: "isolate",
                   background: plan.featured ? "rgba(28,18,52,0.55)" : "rgba(13,11,18,0.45)",
                   backdropFilter: "blur(40px) saturate(140%)",
                   WebkitBackdropFilter: "blur(40px) saturate(140%)",
@@ -205,7 +215,30 @@ export default function PricingSection() {
                     : "linear-gradient(rgba(13,11,18,0.45),rgba(13,11,18,0.45)), linear-gradient(135deg, rgba(244,241,247,0.22) 0%, rgba(244,241,247,0.03) 50%, rgba(0,0,0,0.3) 100%)",
                   backgroundOrigin: "border-box",
                   backgroundClip: "padding-box, border-box",
-                }}>
+                  // CSS-var defaults for the cursor-follow glow
+                  ["--glow-x" as string]: "50%",
+                  ["--glow-y" as string]: "50%",
+                  ["--glow-opacity" as string]: "0",
+                } as React.CSSProperties}>
+
+                {/* Cursor-follow inner glow (purple; warm-white on premium) */}
+                {glowEnabled && (
+                  <div aria-hidden
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      pointerEvents: "none",
+                      zIndex: 1,
+                      opacity: "var(--glow-opacity)",
+                      transition: "opacity 200ms ease-out",
+                      background: plan.featured
+                        ? "radial-gradient(600px circle at var(--glow-x) var(--glow-y), rgba(255,255,255,0.13), transparent 40%)"
+                        : "radial-gradient(600px circle at var(--glow-x) var(--glow-y), rgba(167,139,250,0.19), transparent 40%)",
+                    }} />
+                )}
+
+                {/* Content sits above the glow */}
+                <div className="relative flex h-full flex-col" style={{ zIndex: 2 }}>
                 {plan.featured && (
                   <span className="absolute right-7 top-7"
                     style={{ fontFamily: "Helvetica Neue,Helvetica,Arial,sans-serif", fontSize: "9px",
@@ -250,6 +283,7 @@ export default function PricingSection() {
                     border: plan.featured ? "1px solid #c9b8ff" : "1px solid rgba(244,241,247,0.4)" }}>
                   Jetzt anmelden <span aria-hidden>→</span>
                 </a>
+                </div>
               </div>
             ))}
           </div>
